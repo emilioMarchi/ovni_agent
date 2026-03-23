@@ -60,3 +60,13 @@ npm run dev:server
 
 ---
 *Estado actual: v2.0.0-PROD (Arquitectura Matrix 6.0 validada)*
+
+## 🚧 Fase 8: Mejoras de Agendado (Futuro)
+- [ ] Agregar action `check_next_days` en appointment_manager (disponibilidad próximos 3-5 días)
+- [ ] No crear evento en Calendar al solicitar (solo al confirmar)
+- [ ] Actualizar evento en Calendar cuando admin confirma
+- [ ] Enviar email de confirmación al cliente al confirmar reunión
+
+### Mejoras opcionales del Builder (Futuro):
+- [ ] Agregar flujos por config Firestore (campo `workflows` por agente)
+- [ ] Agregar templates por tipo de agente (sales, support, default)
