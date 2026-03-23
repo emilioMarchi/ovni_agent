@@ -13,10 +13,9 @@ export async function saveHistoryNode(state: AgentStateType) {
 
   try {
     const db = admin.firestore();
-    const userId = userInfo?.phone || "anonymous";
+    const userId = userInfo?.phone || userInfo?.email || "anonymous";
     const docId = `conv_${agentId}_${userId}`;
 
-    // 1. Transformar mensajes a formato serializable para Firestore
     const serializableMessages = messages.map(msg => {
       let role = "unknown";
       if (msg instanceof HumanMessage) role = "user";
@@ -31,16 +30,13 @@ export async function saveHistoryNode(state: AgentStateType) {
       };
     });
 
-    // 2. Guardar en la colección de historial (Nivel 2)
     await db.collection("history").doc(docId).set({
-      clientId,
-      agentId,
+      clientId: clientId || "unknown",
+      agentId: agentId || "unknown",
       userId,
       messages: serializableMessages,
       lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
-
-    // console.log(`💾 Historial persistido para: ${docId}`);
 
   } catch (error) {
     console.error("❌ Error en saveHistoryNode:", error);

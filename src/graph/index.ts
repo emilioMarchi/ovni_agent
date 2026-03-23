@@ -2,23 +2,24 @@ import { StateGraph, START, END, MemorySaver } from "@langchain/langgraph";
 import { toolsCondition } from "@langchain/langgraph/prebuilt";
 import { AgentState } from "../state/state.js";
 import { configNode } from "../nodes/config.js";
+import { ragNode } from "../nodes/rag.js";
 import { modelNode } from "../nodes/model.js";
-import { toolNode } from "../nodes/tools.js";
+import { toolNodeWithLogs } from "../nodes/tools.js";
 import { saveHistoryNode } from "../nodes/save_history.js";
 
 /**
  * Orquestador del Agente OVNI v2.
  */
 const workflow = new StateGraph(AgentState)
-  // 1. Agregar los nodos
   .addNode("config", configNode)
+  .addNode("rag", ragNode)
   .addNode("agent", modelNode)
-  .addNode("tools", toolNode)
+  .addNode("tools", toolNodeWithLogs)
   .addNode("save_history", saveHistoryNode)
 
-  // 2. Definir flujo
   .addEdge(START, "config")
-  .addEdge("config", "agent")
+  .addEdge("config", "rag")
+  .addEdge("rag", "agent")
 
   // 3. Bordes condicionales: Si el modelo genera 'tool_calls', ir al nodo 'tools'.
   // Si no, ir al nodo de persistencia de historial.

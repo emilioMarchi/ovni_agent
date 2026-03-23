@@ -8,6 +8,14 @@ import { AgentStateType } from "../state/state.js";
 export async function configNode(state: AgentStateType) {
   const { agentId, clientId, systemInstruction } = state;
 
+  // Validar que exista agentId
+  if (!agentId) {
+    console.warn("⚠️ No se proporcionó agentId en el estado.");
+    return {
+      systemInstruction: "Error: No se proporcionó ID de agente.",
+    };
+  }
+
   // Si ya tenemos instrucciones, asumimos que ya está configurado (para ahorrar lectura)
   if (systemInstruction && systemInstruction.length > 0) {
     return {};
@@ -26,9 +34,16 @@ export async function configNode(state: AgentStateType) {
 
     const agentData = agentDoc.data()!;
     
+    console.log("🔧 [CONFIG] Datos cargados de Firestore:", {
+      clientId: agentData.clientId,
+      skills: agentData.skills,
+      functions: agentData.functions,
+      knowledgeDocs: agentData.knowledgeDocs?.length || 0,
+    });
+
     // Devolvemos las actualizaciones al estado
     return {
-      clientId: agentData.clientId || clientId,
+      clientId: agentData.clientId || clientId || "",
       businessContext: agentData.businessContext || "",
       systemInstruction: agentData.systemInstruction || "",
       allowedDocIds: agentData.knowledgeDocs || [],

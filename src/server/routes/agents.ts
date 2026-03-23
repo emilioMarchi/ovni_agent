@@ -1,0 +1,203 @@
+import { Router, Request, Response } from "express";
+import admin from "../firebase.js";
+import { v4 as uuidv4 } from "uuid";
+import { masterAuth, AuthenticatedRequest } from "../middleware/auth.js";
+
+const router = Router();
+const db = admin.firestore();
+
+router.use(masterAuth);
+
+router.get("/", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { clientId } = req.query;
+    
+    let query = db.collection("agents") as FirebaseFirestore.Query;
+    
+    if (clientId) {
+      query = query.where("clientId", "==", clientId);
+    }
+    
+    const snapshot = await query.get();
+    const agents = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    
+    res.json({ success: true, data: agents });
+  } catch (error) {
+    console.error("Error fetching agents:", error);
+    res.status(500).json({ success: false, error: "Error al obtener agentes" });
+  }
+});
+
+router.get("/:id", async (req: Request, res: Response) => {
+  try {
+    const doc = await db.collection("agents").doc(req.params.id).get();
+    if (!doc.exists) {
+      return res.status(404).json({ success: false, error: "Agente no encontrado" });
+    }
+    res.json({ success: true, data: { id: doc.id, ...doc.data() } });
+  } catch (error) {
+    console.error("Error fetching agent:", error);
+    res.status(500).json({ success: false, error: "Error al obtener agente" });
+  }
+});
+
+router.post("/", async (req: Request, res: Response) => {
+  try {
+    const {
+      clientId,
+      name,
+      description,
+      systemInstruction,
+      businessContext,
+      skills,
+      functions,
+      tools,
+      model,
+      temperature,
+      maxTokens,
+    } = req.body;
+
+    if (!clientId || !name) {
+      return res.status(400).json({ success: false, error: "clientId y name son requeridos" });
+    }
+
+    const agentId = `agent_${uuidv4().replace(/-/g, "").slice(0, 24)}`;
+    const now = new Date().toISOString();
+
+    const defaultFunctions = [
+      "knowledge_retriever",
+      "product_catalog",
+      "user_profile_manager",
+      "comms_sender",
+      "appointment_manager",
+      "history_retriever",
+    ];
+
+    const agentData = {
+      clientId,
+      name,
+      description: description || "",
+      systemInstruction: systemInstruction || "",
+      businessContext: businessContext || "",
+      skills: skills || [],
+      functions: functions || defaultFunctions,
+      tools: tools || [],
+      model: model || "gemini-2.5-flash-lite",
+      temperature: temperature ?? 0.7,
+      maxTokens: maxTokens ?? 2048,
+      version: "2.0.0",
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await db.collection("agents").doc(agentId).set(agentData);
+
+    res.status(201).json({ success: true, data: { id: agentId, ...agentData } });
+  } catch (error) {
+    console.error("Error creating agent:", error);
+    res.status(500).json({ success: false, error: "Error al crear agente" });
+  }
+});
+
+router.put("/:id", async (req: Request, res: Response) => {
+  try {
+    const updates: Record<string, unknown> = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    const allowedFields = [
+      "name", "description", "systemInstruction", "businessContext",
+      "skills", "functions", "tools", "model", "temperature",
+      "maxTokens", "active"
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    await db.collection("agents").doc(req.params.id).update(updates);
+
+    const doc = await db.collection("agents").doc(req.params.id).get();
+    res.json({ success: true, data: { id: doc.id, ...doc.data() } });
+  } catch (error) {
+    console.error("Error updating agent:", error);
+    res.status(500).json({ success: false, error: "Error al actualizar agente" });
+  }
+});
+
+router.delete("/:id", async (req: Request, res: Response) => {
+  try {
+    await db.collection("agents").doc(req.params.id).delete();
+    res.json({ success: true, message: "Agente eliminado" });
+  } catch (error) {
+    console.error("Error deleting agent:", error);
+    res.status(500).json({ success: false, error: "Error al eliminar agente" });
+  }
+});
+
+router.patch("/:id/functions", async (req: Request, res: Response) => {
+  try {
+    const { functions } = req.body;
+    
+    if (!Array.isArray(functions)) {
+      return res.status(400).json({ success: false, error: "functions debe ser un array" });
+    }
+
+    await db.collection("agents").doc(req.params.id).update({
+      functions,
+      updatedAt: new Date().toISOString(),
+    });
+
+    const doc = await db.collection("agents").doc(req.params.id).get();
+    res.json({ success: true, data: { id: doc.id, ...doc.data() } });
+  } catch (error) {
+    console.error("Error updating agent functions:", error);
+    res.status(500).json({ success: false, error: "Error al actualizar funciones" });
+  }
+});
+
+router.post("/:id/functions/:functionName/toggle", async (req: Request, res: Response) => {
+  try {
+    const { functionName } = req.params;
+    const doc = await db.collection("agents").doc(req.params.id).get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ success: false, error: "Agente no encontrado" });
+    }
+
+    const currentFunctions = doc.data()?.functions || [];
+    let newFunctions;
+
+    if (currentFunctions.includes(functionName)) {
+      newFunctions = currentFunctions.filter((f: string) => f !== functionName);
+    } else {
+      newFunctions = [...currentFunctions, functionName];
+    }
+
+    await db.collection("agents").doc(req.params.id).update({
+      functions: newFunctions,
+      updatedAt: new Date().toISOString(),
+    });
+
+    res.json({ 
+      success: true, 
+      data: { 
+        id: doc.id, 
+        functions: newFunctions,
+        toggled: functionName,
+        added: !currentFunctions.includes(functionName)
+      } 
+    });
+  } catch (error) {
+    console.error("Error toggling function:", error);
+    res.status(500).json({ success: false, error: "Error al alternar función" });
+  }
+});
+
+export default router;

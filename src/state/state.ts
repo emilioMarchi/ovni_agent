@@ -86,6 +86,14 @@ export const AgentState = Annotation.Root({
     reducer: (old, newest) => newest ?? old,
     default: () => "idle",
   }),
+
+  /**
+   * Contexto recuperado del RAG (pre-fetch antes del modelo).
+   */
+  ragContext: Annotation<string>({
+    reducer: (old, newest) => newest ?? old,
+    default: () => "",
+  }),
 });
 
 /**

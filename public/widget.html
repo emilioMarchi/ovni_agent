@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OVNI Chat Widget</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    :root {
+      --ovni-primary: #6366f1;
+      --ovni-primary-dark: #4f46e5;
+      --ovni-bg: #1e1b4b;
+      --ovni-surface: #312e81;
+      --ovni-text: #e0e7ff;
+      --ovni-text-muted: #a5b4fc;
+    }
+    
+    .ovni-widget {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      font-family: system-ui, -apple-system, sans-serif;
+      z-index: 999999;
+    }
+    
+    .ovni-toggle {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: var(--ovni-primary);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .ovni-toggle:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 25px rgba(99, 102, 241, 0.5);
+    }
+    
+    .ovni-toggle svg { width: 28px; height: 28px; fill: white; }
+    
+    .ovni-toggle.open svg.icon-chat { display: none; }
+    .ovni-toggle svg.icon-close { display: none; }
+    .ovni-toggle.open svg.icon-close { display: block; }
+    
+    .ovni-window {
+      position: absolute;
+      bottom: 75px;
+      right: 0;
+      width: 380px;
+      height: 550px;
+      background: var(--ovni-bg);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(20px) scale(0.95);
+      transition: all 0.3s ease;
+    }
+    
+    .ovni-window.open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+    
+    .ovni-header {
+      background: var(--ovni-surface);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .ovni-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--ovni-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .ovni-avatar svg { width: 24px; height: 24px; fill: white; }
+    
+    .ovni-header-info h3 {
+      color: var(--ovni-text);
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .ovni-header-info p {
+      color: var(--ovni-text-muted);
+      font-size: 12px;
+    }
+    
+    .ovni-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .ovni-message {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.4;
+      animation: ovni-fade-in 0.3s ease;
+    }
+    
+    @keyframes ovni-fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .ovni-message.user {
+      background: var(--ovni-primary);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    
+    .ovni-message.assistant {
+      background: var(--ovni-surface);
+      color: var(--ovni-text);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+    
+    .ovni-message.typing {
+      display: flex;
+      gap: 4px;
+      padding: 16px;
+    }
+    
+    .ovni-message.typing span {
+      width: 8px;
+      height: 8px;
+      background: var(--ovni-text-muted);
+      border-radius: 50%;
+      animation: ovni-bounce 1.4s infinite ease-in-out;
+    }
+    
+    .ovni-message.typing span:nth-child(1) { animation-delay: 0s; }
+    .ovni-message.typing span:nth-child(2) { animation-delay: 0.2s; }
+    .ovni-message.typing span:nth-child(3) { animation-delay: 0.4s; }
+    
+    @keyframes ovni-bounce {
+      0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+    
+    .ovni-input-area {
+      padding: 12px 16px;
+      background: var(--ovni-surface);
+      display: flex;
+      gap: 8px;
+    }
+    
+    .ovni-input {
+      flex: 1;
+      background: var(--ovni-bg);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 24px;
+      padding: 10px 16px;
+      color: var(--ovni-text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    
+    .ovni-input:focus { border-color: var(--ovni-primary); }
+    .ovni-input::placeholder { color: var(--ovni-text-muted); }
+    
+    .ovni-send {
+      width: 44px;
+      height: 44px;
+      background: var(--ovni-primary);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    
+    .ovni-send:hover { background: var(--ovni-primary-dark); }
+    .ovni-send svg { width: 20px; height: 20px; fill: white; }
+    .ovni-send:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="ovni-widget" id="ovniWidget">
+    <div class="ovni-window" id="ovniWindow">
+      <div class="ovni-header">
+        <div class="ovni-avatar">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        </div>
+        <div class="ovni-header-info">
+          <h3 id="agentName">Cargando...</h3>
+          <p>En línea</p>
+        </div>
+      </div>
+      <div class="ovni-messages" id="ovniMessages">
+        <div class="ovni-message assistant">¡Hola! Soy tu asistente virtual. ¿En qué puedo ayudarte hoy?</div>
+      </div>
+      <div class="ovni-input-area">
+        <input type="text" class="ovni-input" id="ovniInput" placeholder="Escribe tu mensaje..." autocomplete="off">
+        <button class="ovni-send" id="ovniSend">
+          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="ovni-toggle" id="ovniToggle">
+      <svg class="icon-chat" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+      <svg class="icon-close" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </button>
+  </div>
+
+  <script>
+    class OvniChatWidget {
+      constructor(config) {
+        this.apiUrl = config.apiUrl || 'http://localhost:8080';
+        this.agentId = config.agentId;
+        this.clientId = config.clientId;
+        this.threadId = localStorage.getItem('ovni_thread_' + this.agentId);
+        this.isOpen = false;
+        this.isLoading = false;
+
+        this.init();
+      }
+
+      init() {
+        const toggle = document.getElementById('ovniToggle');
+        const window = document.getElementById('ovniWindow');
+        const input = document.getElementById('ovniInput');
+        const send = document.getElementById('ovniSend');
+
+        toggle.addEventListener('click', () => this.toggle());
+        send.addEventListener('click', () => this.sendMessage());
+        input.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') this.sendMessage();
+        });
+
+        if (this.agentId) {
+          this.loadAgentInfo();
+        }
+      }
+
+      toggle() {
+        this.isOpen = !this.isOpen;
+        const window = document.getElementById('ovniWindow');
+        const toggle = document.getElementById('ovniToggle');
+        
+        window.classList.toggle('open', this.isOpen);
+        toggle.classList.toggle('open', this.isOpen);
+      }
+
+      async loadAgentInfo() {
+        try {
+          const res = await fetch(`${this.apiUrl}/api/chat/agents?clientId=${this.clientId}`);
+          const data = await res.json();
+          
+          if (data.success && data.data.length > 0) {
+            const agent = data.data.find(a => a.id === this.agentId) || data.data[0];
+            document.getElementById('agentName').textContent = agent.name;
+          }
+        } catch (err) {
+          console.error('Error loading agent info:', err);
+        }
+      }
+
+      addMessage(content, type) {
+        const container = document.getElementById('ovniMessages');
+        const msg = document.createElement('div');
+        msg.className = `ovni-message ${type}`;
+        msg.textContent = content;
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
+        return msg;
+      }
+
+      showTyping() {
+        const container = document.getElementById('ovniMessages');
+        const msg = document.createElement('div');
+        msg.className = 'ovni-message assistant typing';
+        msg.id = 'typingIndicator';
+        msg.innerHTML = '<span></span><span></span><span></span>';
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
+      }
+
+      hideTyping() {
+        const typing = document.getElementById('typingIndicator');
+        if (typing) typing.remove();
+      }
+
+      setLoading(loading) {
+        this.isLoading = loading;
+        const send = document.getElementById('ovniSend');
+        const input = document.getElementById('ovniInput');
+        send.disabled = loading;
+        input.disabled = loading;
+      }
+
+      async sendMessage() {
+        const input = document.getElementById('ovniInput');
+        const content = input.value.trim();
+        
+        if (!content || this.isLoading) return;
+
+        input.value = '';
+        this.addMessage(content, 'user');
+        this.showTyping();
+        this.setLoading(true);
+
+        try {
+          const res = await fetch(`${this.apiUrl}/api/chat/invoke`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agentId: this.agentId,
+              clientId: this.clientId,
+              message: content,
+              threadId: this.threadId,
+            }),
+          });
+
+          const data = await res.json();
+          this.hideTyping();
+
+          if (data.success) {
+            this.threadId = data.data.threadId;
+            localStorage.setItem('ovni_thread_' + this.agentId, this.threadId);
+            this.addMessage(data.data.response, 'assistant');
+          } else {
+            this.addMessage('Lo siento, hubo un error. Intenta de nuevo.', 'assistant');
+          }
+        } catch (err) {
+          this.hideTyping();
+          this.addMessage('Error de conexión. Verifica tu internet.', 'assistant');
+        }
+
+        this.setLoading(false);
+      }
+    }
+
+    window.OvniChatWidget = OvniChatWidget;
+  </script>
+</body>
+</html>

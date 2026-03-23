@@ -47,12 +47,25 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       });
 
       const relevantDocIds = catalogResults.matches
-        .filter(m => (m.score || 0) > 0.45)
+        .filter(m => (m.score || 0) > 0.3)
         .map(m => m.metadata?.docId as string)
         .filter(Boolean);
 
       if (relevantDocIds.length === 0) {
-        return "No se encontró información relevante en los documentos autorizados.";
+        const broaderSearch = await index.namespace(namespace).query({
+          vector: queryVector,
+          topK: 5,
+          includeMetadata: true,
+        });
+        
+        if (!broaderSearch.matches || broaderSearch.matches.length === 0) {
+          return "No se encontró información relevante en los documentos autorizados.";
+        }
+        
+        return broaderSearch.matches
+          .filter(m => (m.score || 0) >= 0.25)
+          .map(m => `[DOC: ${m.metadata?.filename}] [SECCIÓN: ${m.metadata?.description}]:\n${m.metadata?.text}`)
+          .join("\n\n---\n\n");
       }
 
       // 3. Capa 2: Búsqueda granular en el namespace del cliente
@@ -68,7 +81,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       }
 
       return searchResult.matches
-        .filter(m => (m.score || 0) >= 0.40)
+        .filter(m => (m.score || 0) >= 0.25)
         .map(m => `[DOC: ${m.metadata?.filename}] [SECCIÓN: ${m.metadata?.description}]:\n${m.metadata?.text}`)
         .join("\n\n---\n\n");
 

@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OVNI Agent v2 — Panel Master Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #07070d;
+      --bg-secondary: #0e0e18;
+      --bg-card: #13131f;
+      --bg-card-hover: #191927;
+      --bg-input: #0a0a14;
+      --border: #1e1e2e;
+      --border-hover: #2a2a40;
+      --text-primary: #f0f0f5;
+      --text-secondary: #8888aa;
+      --text-muted: #555570;
+      --accent: #7c5cfc;
+      --accent-dim: rgba(124, 92, 252, 0.15);
+      --accent-glow: rgba(124, 92, 252, 0.3);
+      --cyan: #22d3ee;
+      --cyan-dim: rgba(34, 211, 238, 0.1);
+      --green: #34d399;
+      --green-dim: rgba(52, 211, 153, 0.1);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.1);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.1);
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeInScale { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+    @keyframes slideInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .animate-fade { animation: fadeIn 0.4s ease forwards; }
+
+    .layout { display: flex; min-height: 100vh; }
+
+    .sidebar {
+      width: 260px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      z-index: 100;
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sidebar-logo {
+      padding: 24px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sidebar-logo-text { display: flex; flex-direction: column; }
+    .sidebar-logo-text .brand { font-weight: 700; font-size: 15px; letter-spacing: 0.5px; color: var(--text-primary); }
+    .sidebar-logo-text .sub { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 500; }
+
+    .sidebar-nav { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+
+    .nav-section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      padding: 12px 8px 6px;
+      font-weight: 600;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      border: 1px solid transparent;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .nav-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 0;
+      background: var(--accent);
+      border-radius: 0 3px 3px 0;
+      transition: height 0.2s ease;
+    }
+
+    .nav-item:hover { background: var(--bg-card); color: var(--text-primary); border-color: var(--border); }
+    .nav-item.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(124, 92, 252, 0.2); }
+    .nav-item.active::before { height: 60%; }
+    .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 16px 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .user-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--cyan));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .user-info { flex: 1; min-width: 0; }
+    .user-info .name { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-info .role { font-size: 11px; color: var(--accent); font-weight: 500; }
+
+    .main { flex: 1; margin-left: 260px; display: flex; flex-direction: column; min-height: 100vh; }
+
+    .topbar {
+      height: 64px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      background: rgba(7, 7, 13, 0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .topbar-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+
+    .content { flex: 1; padding: 32px; animation: fadeIn 0.3s ease; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.2s ease;
+    }
+
+    .card:hover { border-color: var(--border-hover); }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+    .card-title svg { color: var(--accent); }
+
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .section-title { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+
+    .clients-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+
+    .client-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .client-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--cyan));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .client-card:hover { border-color: rgba(124,92,252,0.3); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+    .client-card:hover::after { opacity: 1; }
+
+    .client-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+
+    .client-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: var(--accent-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+    }
+
+    .client-id {
+      font-size: 10px;
+      font-family: 'Courier New', monospace;
+      color: var(--text-muted);
+      background: var(--bg-input);
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .client-name { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+    .client-email { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+    .client-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 20px; }
+
+    .client-actions { display: flex; gap: 8px; }
+
+    .client-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: var(--text-secondary);
+    }
+
+    .client-btn svg { width: 14px; height: 14px; }
+    .client-btn:hover { border-color: var(--border-hover); color: var(--text-primary); background: var(--bg-card-hover); }
+    .client-btn.danger:hover { border-color: rgba(248,113,113,0.3); color: var(--red); background: var(--red-dim); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn svg { width: 16px; height: 16px; }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #6b4de0; box-shadow: 0 4px 20px var(--accent-glow); transform: translateY(-1px); }
+    .btn-secondary { background: var(--bg-card); color: var(--text-primary); border-color: var(--border); }
+    .btn-secondary:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
+    .btn-danger { background: var(--red-dim); color: var(--red); border-color: rgba(248,113,113,0.2); }
+    .btn-danger:hover { background: rgba(248,113,113,0.15); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
+    .btn-icon { padding: 10px; border-radius: 10px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      transition: all 0.2s;
+      outline: none;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    .form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); }
+    .form-select { appearance: none; cursor: pointer; }
+    .form-select option { background: var(--bg-card); }
+    .form-textarea { resize: vertical; min-height: 100px; }
+    .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .modal-overlay.active { opacity: 1; visibility: visible; }
+
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 560px;
+      max-height: 90vh;
+      overflow-y: auto;
+      transform: scale(0.95) translateY(10px);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .modal-overlay.active .modal { transform: scale(1) translateY(0); }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-title { font-size: 16px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+    .modal-title svg { color: var(--accent); }
+    .modal-body { padding: 24px; }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 20px 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+
+    .agent-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .agent-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--cyan));
+    }
+
+    .agent-card:hover { border-color: rgba(124,92,252,0.3); transform: translateY(-4px); box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+
+    .chat-message {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 18px;
+      max-width: 85%;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+
+    .chat-message.user { align-self: flex-end; background: var(--accent-dim); border-color: rgba(124,92,252,0.2); }
+    .chat-message.assistant { align-self: flex-start; }
+
+    .agent-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+
+    .agent-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-indigo { background: rgba(99,102,241,0.15); color: #818cf8; }
+    .badge-green { background: var(--green-dim); color: var(--green); }
+    .badge-amber { background: var(--amber-dim); color: var(--amber); }
+
+    .agent-name { font-size: 17px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+    .agent-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+    .agent-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .agent-meta-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+    .agent-meta-item svg { width: 14px; height: 14px; }
+
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .tag-purple { background: var(--accent-dim); color: var(--accent); }
+    .tag-green { background: var(--green-dim); color: var(--green); }
+    .tag-cyan { background: var(--cyan-dim); color: var(--cyan); }
+
+    .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px; }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .checkbox-item:hover { border-color: var(--border-hover); color: var(--text-primary); }
+    .checkbox-item input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+
+    .split-panel { display: grid; grid-template-columns: 280px 1fr; gap: 24px; }
+
+    .panel-sidebar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      height: fit-content;
+      position: sticky;
+      top: 96px;
+    }
+
+    .panel-sidebar-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-list-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid transparent;
+      margin-bottom: 4px;
+    }
+
+    .panel-list-item:hover { background: var(--bg-card-hover); color: var(--text-primary); border-color: var(--border); }
+    .panel-list-item.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(124,92,252,0.2); }
+    .panel-list-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+    .empty-state svg { width: 64px; height: 64px; margin: 0 auto 20px; color: var(--border-hover); }
+    .empty-state p { font-size: 14px; }
+    .empty-state .hint { font-size: 12px; margin-top: 8px; color: var(--text-muted); }
+
+    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 3000; display: flex; flex-direction: column; gap: 10px; }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      animation: slideInRight 0.3s ease;
+      min-width: 280px;
+    }
+
+    .toast svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .toast.success { border-color: rgba(52,211,153,0.3); }
+    .toast.success svg { color: var(--green); }
+    .toast.error { border-color: rgba(248,113,113,0.3); }
+    .toast.error svg { color: var(--red); }
+    .toast.info { border-color: rgba(34,211,238,0.3); }
+    .toast.info svg { color: var(--cyan); }
+
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-primary);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px;
+      animation: fadeInScale 0.4s ease;
+    }
+
+    .login-logo { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; justify-content: center; }
+    .login-logo-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--cyan));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 24px;
+      color: white;
+    }
+    .login-logo-text .brand { font-size: 22px; font-weight: 800; color: var(--text-primary); }
+    .login-logo-text .sub { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 2px; font-weight: 500; margin-top: 2px; }
+
+    .login-btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .login-btn:hover { background: #6b4de0; box-shadow: 0 4px 24px var(--accent-glow); transform: translateY(-1px); }
+    .login-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .info-box {
+      background: var(--cyan-dim);
+      border: 1px solid rgba(34,211,238,0.15);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 13px;
+      color: var(--cyan);
+      margin-bottom: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .info-box svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); }
+      .main { margin-left: 0; }
+      .split-panel { grid-template-columns: 1fr; }
+      .clients-grid, .agents-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login-overlay" class="login-overlay">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="login-logo-icon">OV</div>
+        <div class="login-logo-text">
+          <div class="brand">OVNI Agent v2</div>
+          <div class="sub">Panel Master Admin</div>
+        </div>
+      </div>
+
+      <div class="info-box" style="margin-bottom: 20px">
+        <i data-lucide="info"></i>
+        <span>Ingresá la contraseña de Master Admin para acceder al panel.</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Contraseña</label>
+        <input type="password" id="login-password" class="form-input" placeholder="••••••••" onkeypress="if(event.key==='Enter')doLogin()">
+      </div>
+
+      <div id="login-error" style="background: var(--red-dim); color: var(--red); padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; display: none; border: 1px solid rgba(248,113,113,0.2);"></div>
+
+      <button id="login-btn" class="login-btn" onclick="doLogin()">
+        <i data-lucide="log-in" style="width:16px;height:16px"></i>
+        Acceder al Panel
+      </button>
+    </div>
+  </div>
+
+  <!-- LAYOUT -->
+  <div class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="login-logo-icon" style="width:40px;height:40px;font-size:18px">OV</div>
+        <div class="sidebar-logo-text">
+          <div class="brand">OVNI Agent v2</div>
+          <div class="sub">Master Admin</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Gestión</div>
+
+        <div class="nav-item active" id="nav-admins" onclick="showTab('admins')">
+          <i data-lucide="building-2"></i>
+          Admins
+        </div>
+
+        <div class="nav-item" id="nav-agents" onclick="showTab('agents')">
+          <i data-lucide="bot"></i>
+          Agentes IA
+          <span class="nav-badge" id="nav-agent-count" style="display:none">0</span>
+        </div>
+
+        <div class="nav-section-label" style="margin-top:16px">Pruebas</div>
+
+        <div class="nav-item" id="nav-test" onclick="showTab('test')">
+          <i data-lucide="play"></i>
+          Probar Agente
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-card">
+          <div class="user-avatar" id="user-avatar-letter">M</div>
+          <div class="user-info">
+            <div class="name" id="user-name">Master Admin</div>
+            <div class="role">Administrador</div>
+          </div>
+          <button class="btn btn-ghost btn-icon btn-sm" onclick="doLogout()" title="Cerrar sesión">
+            <i data-lucide="log-out" style="width:16px;height:16px"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-title" id="topbar-title">Admins</div>
+      </header>
+
+      <div class="content">
+
+        <!-- ====== TAB: ADMINS ====== -->
+        <div id="tab-admins" class="tab-content active">
+          <div class="section-header">
+            <div class="section-title">Organizaciones (Admins)</div>
+            <button class="btn btn-primary" onclick="openModal('modal-admin')">
+              <i data-lucide="plus"></i>
+              Nuevo Admin
+            </button>
+          </div>
+
+          <div class="clients-grid" id="admins-grid">
+            <div class="empty-state">
+              <i data-lucide="loader" style="animation:spin 1s linear infinite;width:48px;height:48px"></i>
+              <p>Cargando admins...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== TAB: AGENTS ====== -->
+        <div id="tab-agents" class="tab-content">
+          <div class="section-header">
+            <div class="section-title">Agentes IA</div>
+          </div>
+
+          <div class="split-panel">
+            <div class="panel-sidebar">
+              <div class="panel-sidebar-title">Seleccionar Admin</div>
+              <div id="select-admin-list"></div>
+            </div>
+            <div class="panel-main">
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">
+                    <i data-lucide="bot"></i>
+                    Agentes de <strong id="current-admin-name">-</strong>
+                  </div>
+                  <button id="btn-create-agent" class="btn btn-primary btn-sm" disabled onclick="openAgentModal()">
+                    <i data-lucide="plus"></i>
+                    Nuevo Agente
+                  </button>
+                </div>
+                <div class="agents-grid" id="agents-grid"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== TAB: TEST ====== -->
+        <div id="tab-test" class="tab-content">
+          <div class="section-header">
+            <div class="section-title">Probar Agente</div>
+          </div>
+
+          <div class="split-panel">
+            <div class="panel-sidebar">
+              <div class="panel-sidebar-title">Seleccionar Agente</div>
+              <div id="test-agent-list"></div>
+            </div>
+            <div class="panel-main">
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">
+                    <i data-lucide="message-circle"></i>
+                    Chat de Prueba
+                  </div>
+                </div>
+                <div id="test-chat-area" style="display:none">
+                  <div id="test-messages" style="max-height:400px;overflow-y:auto;margin-bottom:16px;display:flex;flex-direction:column;gap:12px"></div>
+                  <div style="display:flex;gap:8px">
+                    <input type="text" id="test-input" class="form-input" placeholder="Escribe tu mensaje..." onkeypress="if(event.key==='Enter')sendTestMessage()">
+                    <button class="btn btn-primary" onclick="sendTestMessage()">
+                      <i data-lucide="send" style="width:16px;height:16px"></i>
+                    </button>
+                  </div>
+                </div>
+                <div id="test-empty" class="empty-state">
+                  <i data-lucide="bot"></i>
+                  <p>Seleccioná un agente para probar</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- content -->
+    </main>
+  </div><!-- layout -->
+
+  <!-- ===== MODALS ===== -->
+
+  <!-- MODAL: ADMIN -->
+  <div id="modal-admin" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="building-2"></i>Nuevo Admin</div>
+        <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('modal-admin')"><i data-lucide="x"></i></button>
+      </div>
+      <form id="form-admin">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nombre de la Organización</label>
+            <input type="text" name="name" class="form-input" placeholder="Ej: Acme Corp" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email del Admin</label>
+            <input type="email" name="email" class="form-input" placeholder="admin@tuempresa.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nombre del Negocio</label>
+            <input type="text" name="businessName" class="form-input" placeholder="Mi Negocio">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contexto de Negocio</label>
+            <textarea name="businessContext" class="form-textarea" placeholder="Describe brevemente el negocio..." rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-admin')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear Admin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADMIN EDIT -->
+  <div id="modal-admin-edit" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="settings"></i>Editar Admin</div>
+        <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('modal-admin-edit')"><i data-lucide="x"></i></button>
+      </div>
+      <form id="form-admin-edit">
+        <div class="modal-body">
+          <input type="hidden" name="adminId" id="edit-admin-id">
+          <div class="form-group">
+            <label class="form-label">Nombre</label>
+            <input type="text" name="name" id="edit-admin-name" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" id="edit-admin-email" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nombre del Negocio</label>
+            <input type="text" name="businessName" id="edit-admin-businessName" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contexto de Negocio</label>
+            <textarea name="businessContext" id="edit-admin-businessContext" class="form-textarea" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-admin-edit')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AGENT -->
+  <div id="modal-agent" class="modal-overlay">
+    <div class="modal" style="max-width:600px">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-agent-title"><i data-lucide="bot"></i>Nuevo Agente</div>
+        <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('modal-agent')"><i data-lucide="x"></i></button>
+      </div>
+      <form id="form-agent">
+        <div class="modal-body">
+          <input type="hidden" name="clientId" id="agent-client-id">
+          <div class="form-group">
+            <label class="form-label">Nombre del Agente</label>
+            <input type="text" name="name" class="form-input" placeholder="Eva, Asistente de Ventas..." required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Descripción</label>
+            <input type="text" name="description" class="form-input" placeholder="Breve descripción del agente">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Instrucciones de Sistema</label>
+            <textarea name="systemInstruction" class="form-textarea" placeholder="Eres un asistente virtual que trabaja en..." rows="3"></textarea>
+            <div class="form-hint">Define la personalidad y comportamiento del agente</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contexto de Negocio</label>
+            <textarea name="businessContext" class="form-textarea" placeholder="Información general del negocio (servicios, precios, proceso)..." rows="3"></textarea>
+            <div class="form-hint">Se muestra automáticamente en cada respuesta. Ideal para info general.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Herramientas Disponibles</label>
+            <div class="checkbox-grid" id="tools-pool">
+              <label class="checkbox-item">
+                <input type="checkbox" name="functions" value="knowledge_retriever" checked>
+                <span>knowledge_retriever</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="functions" value="product_catalog" checked>
+                <span>product_catalog</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="functions" value="user_profile_manager" checked>
+                <span>user_profile_manager</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="functions" value="comms_sender" checked>
+                <span>comms_sender</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="functions" value="appointment_manager" checked>
+                <span>appointment_manager</span>
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" name="functions" value="history_retriever" checked>
+                <span>history_retriever</span>
+              </label>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-group">
+              <label class="form-label">Modelo</label>
+              <select name="model" class="form-select">
+                <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Temperatura</label>
+              <input type="number" name="temperature" class="form-input" value="0.7" min="0" max="1" step="0.1">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-agent')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">
+            <i data-lucide="plus" style="width:14px;height:14px"></i>
+            <span id="modal-agent-btn-text">Crear Agente</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    lucide.createIcons();
+
+    // ===== CONFIG =====
+    const API_BASE = window.location.origin;
+    let masterClientId = localStorage.getItem('ovni_master_client_id');
+    let currentAdminId = null;
+    let currentAdminName = null;
+    let editingAgentId = null;
+    let testAgentId = null;
+    let testClientId = null;
+    let testThreadId = null;
+
+    // ===== HELPERS =====
+    async function apiFetch(url, options = {}) {
+      const headers = { ...options.headers };
+      if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+      headers['x-client-id'] = masterClientId;
+      
+      const res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (data.error?.includes('permisos') || res.status === 403) {
+          doLogout();
+        }
+        throw new Error(data.error || 'Error en la petición');
+      }
+      return data;
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const icons = { success: 'check-circle', error: 'x-circle', info: 'info' };
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}"></i>${msg}`;
+      container.appendChild(toast);
+      lucide.createIcons({ nodes: [toast] });
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    function openModal(id) {
+      document.getElementById(id).classList.add('active');
+      lucide.createIcons();
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.classList.remove('active');
+      });
+    });
+
+    // ===== LOGIN =====
+    function checkAuth() {
+      if (!masterClientId) {
+        document.getElementById('login-overlay').style.display = 'flex';
+        return;
+      }
+      document.getElementById('login-overlay').style.display = 'none';
+      document.getElementById('user-name').textContent = masterClientId.slice(0, 16) + '...';
+      document.getElementById('user-avatar-letter').textContent = masterClientId[4]?.toUpperCase() || 'M';
+      loadAdmins();
+      lucide.createIcons();
+    }
+
+    window.doLogin = async function() {
+      const password = document.getElementById('login-password').value.trim();
+      if (!password) {
+        document.getElementById('login-error').textContent = 'Ingresá la contraseña';
+        document.getElementById('login-error').style.display = 'block';
+        return;
+      }
+      
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px;animation:spin 1s linear infinite"></i> Verificando...';
+      lucide.createIcons();
+
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+        
+        const data = await res.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Contraseña incorrecta');
+        }
+
+        masterClientId = data.clientId;
+        localStorage.setItem('ovni_master_client_id', masterClientId);
+        document.getElementById('login-overlay').style.display = 'none';
+        document.getElementById('user-name').textContent = 'Master Admin';
+        document.getElementById('user-avatar-letter').textContent = 'M';
+        loadAdmins();
+        lucide.createIcons();
+      } catch (e) {
+        document.getElementById('login-error').textContent = e.message;
+        document.getElementById('login-error').style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px"></i> Acceder al Panel';
+        lucide.createIcons();
+      }
+    };
+
+    window.doLogout = function() {
+      masterClientId = null;
+      localStorage.removeItem('ovni_master_client_id');
+      document.getElementById('login-overlay').style.display = 'flex';
+    };
+
+    // ===== NAVIGATION =====
+    const TAB_TITLES = { admins: 'Admins', agents: 'Agentes IA', test: 'Probar Agente' };
+
+    window.showTab = function(id) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.getElementById(`tab-${id}`).classList.add('active');
+      const navEl = document.getElementById(`nav-${id}`);
+      if (navEl) navEl.classList.add('active');
+      document.getElementById('topbar-title').textContent = TAB_TITLES[id] || id;
+      
+      if (id === 'admins') loadAdmins();
+      if (id === 'agents') loadAdminsForAgents();
+      if (id === 'test') loadAgentsForTest();
+      
+      lucide.createIcons();
+    };
+
+    // ===== ADMINS =====
+    async function loadAdmins() {
+      const grid = document.getElementById('admins-grid');
+      grid.innerHTML = '<div class="empty-state"><i data-lucide="loader" style="animation:spin 1s linear infinite;width:48px;height:48px"></i><p>Cargando admins...</p></div>';
+      lucide.createIcons();
+      
+      try {
+        const data = await apiFetch('/api/admins');
+        renderAdmins(data.data || []);
+      } catch (e) {
+        grid.innerHTML = `<div class="empty-state"><i data-lucide="alert-circle"></i><p>Error: ${e.message}</p></div>`;
+      }
+      lucide.createIcons();
+    }
+
+    function renderAdmins(admins) {
+      const grid = document.getElementById('admins-grid');
+      if (!admins || admins.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><i data-lucide="building-2"></i><p>No hay admins registrados</p><p class="hint">Creá tu primer admin</p></div>';
+        lucide.createIcons(); return;
+      }
+      
+      grid.innerHTML = admins.map((a, i) => `
+        <div class="client-card animate-fade" style="animation-delay:${i * 0.05}s">
+          <div class="client-card-header">
+            <div class="client-icon"><i data-lucide="building-2"></i></div>
+            <span class="client-id">${a.id.slice(0, 12)}...</span>
+          </div>
+          <div class="client-name">${a.name || 'Sin nombre'}</div>
+          <div class="client-email">${a.email || 'Sin email'}</div>
+          <div class="client-meta">
+            <span>Creado: ${new Date(a.createdAt).toLocaleDateString('es-AR')}</span>
+          </div>
+          <div class="client-actions">
+            <button class="client-btn" onclick="showTab('agents'); selectAdmin('${a.id}','${a.name}')" title="Ver Agentes">
+              <i data-lucide="bot"></i> Agentes
+            </button>
+            <button class="client-btn" onclick="editAdmin('${a.id}')" title="Editar">
+              <i data-lucide="settings"></i>
+            </button>
+            <button class="client-btn danger" onclick="deleteAdmin('${a.id}')" title="Eliminar">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    window.editAdmin = async (adminId) => {
+      try {
+        const data = await apiFetch(`/api/admins/${adminId}`);
+        const a = data.data;
+        document.getElementById('edit-admin-id').value = a.id;
+        document.getElementById('edit-admin-name').value = a.name || '';
+        document.getElementById('edit-admin-email').value = a.email || '';
+        document.getElementById('edit-admin-businessName').value = a.businessName || '';
+        document.getElementById('edit-admin-businessContext').value = a.businessContext || '';
+        openModal('modal-admin-edit');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+      lucide.createIcons();
+    };
+
+    window.deleteAdmin = async (adminId) => {
+      if (!confirm('¿Eliminar este admin? Se borrarán todos sus agentes.')) return;
+      try {
+        await apiFetch(`/api/admins/${adminId}`, { method: 'DELETE' });
+        showToast('Admin eliminado', 'success');
+        loadAdmins();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
+
+    document.getElementById('form-admin').onsubmit = async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        businessName: formData.get('businessName'),
+        businessContext: formData.get('businessContext')
+      };
+      try {
+        await apiFetch('/api/admins', { method: 'POST', body: JSON.stringify(data) });
+        showToast('Admin creado', 'success');
+        closeModal('modal-admin');
+        e.target.reset();
+        loadAdmins();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
+
+    document.getElementById('form-admin-edit').onsubmit = async (e) => {
+      e.preventDefault();
+      const adminId = document.getElementById('edit-admin-id').value;
+      const formData = new FormData(e.target);
+      const data = {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        businessName: formData.get('businessName'),
+        businessContext: formData.get('businessContext')
+      };
+      try {
+        await apiFetch(`/api/admins/${adminId}`, { method: 'PUT', body: JSON.stringify(data) });
+        showToast('Admin actualizado', 'success');
+        closeModal('modal-admin-edit');
+        loadAdmins();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
+
+    // ===== AGENTS =====
+    async function loadAdminsForAgents() {
+      try {
+        const data = await apiFetch('/api/admins');
+        const container = document.getElementById('select-admin-list');
+        container.innerHTML = (data.data || []).map(a => `
+          <div class="panel-list-item" onclick="selectAdmin('${a.id}','${a.name}')">
+            <i data-lucide="folder"></i> ${a.name || a.id.slice(0, 12)}
+          </div>
+        `).join('') || '<div style="padding:12px;font-size:12px;color:var(--text-muted)">Sin admins</div>';
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+      lucide.createIcons();
+    }
+
+    window.selectAdmin = async (id, name) => {
+      currentAdminId = id;
+      currentAdminName = name;
+      document.getElementById('current-admin-name').textContent = name || id.slice(0, 12);
+      document.getElementById('btn-create-agent').disabled = false;
+      document.getElementById('agent-client-id').value = id;
+      
+      document.querySelectorAll('#select-admin-list .panel-list-item').forEach(el => {
+        el.classList.toggle('active', el.textContent.includes(name));
+      });
+      
+      loadAgents(id);
+      lucide.createIcons();
+    };
+
+    async function loadAgents(adminId) {
+      const container = document.getElementById('agents-grid');
+      container.innerHTML = '<div class="empty-state"><i data-lucide="loader" style="animation:spin 1s linear infinite;width:48px;height:48px"></i><p>Cargando agentes...</p></div>';
+      lucide.createIcons();
+      
+      try {
+        const data = await apiFetch(`/api/agents?clientId=${adminId}`);
+        renderAgents(data.data || []);
+      } catch (e) {
+        container.innerHTML = `<div class="empty-state"><i data-lucide="alert-circle"></i><p>Error: ${e.message}</p></div>`;
+      }
+      lucide.createIcons();
+    }
+
+    function renderAgents(agents) {
+      const container = document.getElementById('agents-grid');
+      const countEl = document.getElementById('nav-agent-count');
+      
+      if (!agents || agents.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><i data-lucide="bot"></i><p>No hay agentes para este admin</p><p class="hint">Creá el primer agente</p></div>';
+        countEl.style.display = 'none';
+        lucide.createIcons(); return;
+      }
+
+      countEl.textContent = agents.length;
+      countEl.style.display = agents.length > 0 ? 'inline' : 'none';
+
+      container.innerHTML = agents.map((a, i) => `
+        <div class="agent-card animate-fade" style="animation-delay:${i * 0.05}s">
+          <div class="agent-card-header">
+            <span class="agent-badge badge-indigo">${a.active !== false ? 'Activo' : 'Inactivo'}</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost btn-icon btn-sm" onclick="editAgent('${a.id}')" title="Editar">
+                <i data-lucide="pencil"></i>
+              </button>
+              <button class="btn btn-ghost btn-icon btn-sm" onclick="deleteAgent('${a.id}')" title="Eliminar">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </div>
+          </div>
+          <div class="agent-name">${a.name}</div>
+          <div class="agent-desc">${a.description || a.systemInstruction || 'Sin descripción'}</div>
+          <div class="agent-meta">
+            <div class="agent-meta-item"><i data-lucide="cpu"></i>${a.model || 'gemini-2.5-flash-lite'}</div>
+            <div class="agent-meta-item"><i data-lucide="thermometer"></i>${a.temperature ?? 0.7}</div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+            ${(a.functions || []).slice(0, 4).map(fn => `<span class="tag tag-purple">${fn.replace('_', ' ')}</span>`).join('')}
+            ${(a.functions || []).length > 4 ? `<span class="tag tag-cyan">+${a.functions.length - 4}</span>` : ''}
+          </div>
+          <div class="client-actions">
+            <button class="client-btn" style="flex:1" onclick="testThisAgent('${a.id}', '${a.name}', '${currentAdminId}')">
+              <i data-lucide="play"></i> Probar
+            </button>
+          </div>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    window.editAgent = async (agentId) => {
+      editingAgentId = agentId;
+      try {
+        const data = await apiFetch(`/api/agents/${agentId}`);
+        const a = data.data;
+        
+        document.getElementById('agent-client-id').value = a.clientId;
+        document.querySelector('[name="name"]').value = a.name || '';
+        document.querySelector('[name="description"]').value = a.description || '';
+        document.querySelector('[name="systemInstruction"]').value = a.systemInstruction || '';
+        document.querySelector('[name="businessContext"]').value = a.businessContext || '';
+        document.querySelector('[name="model"]').value = a.model || 'gemini-2.5-flash-lite';
+        document.querySelector('[name="temperature"]').value = a.temperature ?? 0.7;
+        
+        document.querySelectorAll('[name="functions"]').forEach(cb => {
+          cb.checked = (a.functions || []).includes(cb.value);
+        });
+        
+        document.getElementById('modal-agent-title').innerHTML = '<i data-lucide="pencil"></i>Editar Agente';
+        document.getElementById('modal-agent-btn-text').textContent = 'Guardar Cambios';
+        openModal('modal-agent');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+      lucide.createIcons();
+    };
+
+    window.deleteAgent = async (agentId) => {
+      if (!confirm('¿Borrar este agente?')) return;
+      try {
+        await apiFetch(`/api/agents/${agentId}`, { method: 'DELETE' });
+        showToast('Agente eliminado', 'success');
+        loadAgents(currentAdminId);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
+
+    window.openAgentModal = () => {
+      editingAgentId = null;
+      document.getElementById('form-agent').reset();
+      document.querySelectorAll('[name="functions"]').forEach(cb => cb.checked = true);
+      document.getElementById('modal-agent-title').innerHTML = '<i data-lucide="bot"></i>Nuevo Agente';
+      document.getElementById('modal-agent-btn-text').textContent = 'Crear Agente';
+      openModal('modal-agent');
+      lucide.createIcons();
+    };
+
+    document.getElementById('form-agent').onsubmit = async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const functions = Array.from(formData.getAll('functions'));
+      const data = {
+        clientId: formData.get('clientId'),
+        name: formData.get('name'),
+        description: formData.get('description'),
+        systemInstruction: formData.get('systemInstruction'),
+        businessContext: formData.get('businessContext'),
+        model: formData.get('model'),
+        temperature: parseFloat(formData.get('temperature')),
+        functions
+      };
+      
+      try {
+        if (editingAgentId) {
+          await apiFetch(`/api/agents/${editingAgentId}`, { method: 'PUT', body: JSON.stringify(data) });
+          showToast('Agente actualizado', 'success');
+        } else {
+          await apiFetch('/api/agents', { method: 'POST', body: JSON.stringify(data) });
+          showToast('Agente creado', 'success');
+        }
+        closeModal('modal-agent');
+        loadAgents(currentAdminId);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
+
+    // ===== TEST AGENT =====
+    async function loadAgentsForTest() {
+      try {
+        const data = await apiFetch('/api/agents');
+        const container = document.getElementById('test-agent-list');
+        const allAgents = data.data || [];
+        
+        container.innerHTML = allAgents.map(a => `
+          <div class="panel-list-item" id="test-agent-${a.id}" onclick="selectTestAgent('${a.id}', '${a.name}', '${a.clientId}')">
+            <i data-lucide="bot"></i> ${a.name}
+          </div>
+        `).join('') || '<div style="padding:12px;font-size:12px;color:var(--text-muted)">Sin agentes</div>';
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+      lucide.createIcons();
+    }
+
+    window.selectTestAgent = (agentId, name, clientId) => {
+      testAgentId = agentId;
+      testClientId = clientId;
+      testThreadId = null;
+      
+      document.querySelectorAll('#test-agent-list .panel-list-item').forEach(el => el.classList.remove('active'));
+      document.getElementById(`test-agent-${agentId}`)?.classList.add('active');
+      
+      document.getElementById('test-empty').style.display = 'none';
+      document.getElementById('test-chat-area').style.display = 'block';
+      document.getElementById('test-messages').innerHTML = `<div class="empty-state" style="padding:20px"><i data-lucide="message-circle"></i><p>Comenzá a chatear con <strong>${name}</strong></p></div>`;
+      lucide.createIcons();
+    };
+
+    window.testThisAgent = (agentId, name, clientId) => {
+      showTab('test');
+      selectTestAgent(agentId, name, clientId);
+    };
+
+    window.testThisAgent = (agentId, name, clientId) => {
+      showTab('test');
+      selectTestAgent(agentId, name, clientId);
+    };
+
+    window.sendTestMessage = async () => {
+      const input = document.getElementById('test-input');
+      const message = input.value.trim();
+      if (!message || !testAgentId) return;
+      
+      input.value = '';
+      const container = document.getElementById('test-messages');
+      
+      const userMsg = document.createElement('div');
+      userMsg.className = 'chat-message user';
+      userMsg.textContent = message;
+      container.appendChild(userMsg);
+      
+      const assistantMsg = document.createElement('div');
+      assistantMsg.className = 'chat-message assistant';
+      assistantMsg.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px;animation:spin 1s linear infinite"></i> Pensando...';
+      container.appendChild(assistantMsg);
+      
+      container.scrollTop = container.scrollHeight;
+      lucide.createIcons({ nodes: [assistantMsg] });
+      
+      try {
+        const data = await apiFetch('/api/chat/invoke', {
+          method: 'POST',
+          body: JSON.stringify({
+            agentId: testAgentId,
+            clientId: testClientId,
+            message,
+            threadId: testThreadId
+          })
+        });
+        
+        testThreadId = data.data.threadId;
+        assistantMsg.innerHTML = `<span style="white-space:pre-wrap">${data.data.response}</span>`;
+      } catch (e) {
+        assistantMsg.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
+      }
+      
+      container.scrollTop = container.scrollHeight;
+      lucide.createIcons({ nodes: [assistantMsg] });
+    };
+
+    // ===== INIT =====
+    checkAuth();
+    lucide.createIcons();
+  </script>
+</body>
+</html>
