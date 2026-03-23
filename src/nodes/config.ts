@@ -1,12 +1,14 @@
 import admin from "firebase-admin";
 import { AgentStateType } from "../state/state.js";
+import { RunnableConfig } from "@langchain/core/runnables";
 
 /**
  * Nodo de Configuración: Hidrata el estado inicial con la información del agente
  * desde Firestore (skills, knowledgeDocs, instructions).
  */
-export async function configNode(state: AgentStateType) {
+export async function configNode(state: AgentStateType, _: any, config?: RunnableConfig) {
   const { agentId, clientId, systemInstruction } = state;
+  const threadId = (config?.configurable as any)?.thread_id || state.threadId || "";
 
   // Validar que exista agentId
   if (!agentId) {
@@ -49,6 +51,7 @@ export async function configNode(state: AgentStateType) {
       allowedDocIds: agentData.knowledgeDocs || [],
       skills: agentData.skills || [],
       functions: agentData.functions || [],
+      threadId,
     };
 
   } catch (error) {

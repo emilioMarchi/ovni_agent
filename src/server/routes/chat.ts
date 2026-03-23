@@ -49,6 +49,7 @@ router.post("/invoke", async (req: Request, res: Response) => {
       messages: [{ role: "user", content: message }],
       agentId,
       clientId: clientId || "unknown",
+      threadId: threadId || crypto.randomUUID(),
     };
 
     console.log(`📨 Invocando agente ${agentId} para cliente ${clientId}`);
@@ -106,6 +107,7 @@ router.post("/stream", async (req: Request, res: Response) => {
       messages: [{ role: "user", content: message }],
       agentId,
       clientId: clientId || "unknown",
+      threadId: threadId || crypto.randomUUID(),
     };
 
     res.setHeader("Content-Type", "text/event-stream");

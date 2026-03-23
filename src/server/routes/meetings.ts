@@ -55,7 +55,7 @@ router.get("/status", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/:meetingId/confirm", async (req: Request, res: Response) => {
+router.all("/:meetingId/confirm", async (req: Request, res: Response) => {
   try {
     const { meetingId } = req.params;
     const db = admin.firestore();
@@ -107,14 +107,14 @@ router.post("/:meetingId/confirm", async (req: Request, res: Response) => {
       console.warn("No se pudo enviar email de confirmación:", e);
     }
 
-    res.json({ success: true, message: "Reunión confirmada", calendarEventId });
+    res.send(`<h1>Reunión Confirmada</h1><p>La reunión ha sido confirmada correctamente y se ha enviado la notificación al cliente.</p>`);
   } catch (error: any) {
     console.error("Error confirmando reunión:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-router.post("/:meetingId/reject", async (req: Request, res: Response) => {
+router.all("/:meetingId/reject", async (req: Request, res: Response) => {
   try {
     const { meetingId } = req.params;
     const db = admin.firestore();
@@ -143,7 +143,7 @@ router.post("/:meetingId/reject", async (req: Request, res: Response) => {
       console.warn("No se pudo enviar email de cancelación:", e);
     }
 
-    res.json({ success: true, message: "Reunión cancelada" });
+    res.send(`<h1>Reunión Cancelada</h1><p>La reunión ha sido cancelada correctamente.</p>`);
   } catch (error: any) {
     console.error("Error cancelando reunión:", error);
     res.status(500).json({ success: false, error: error.message });

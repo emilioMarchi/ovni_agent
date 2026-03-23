@@ -26,6 +26,8 @@ export async function modelNode(state: AgentStateType) {
     if (skills.includes("knowledge") && tool.name === "knowledge_retriever") return true;
     if (skills.includes("sales") && tool.name === "product_catalog") return true;
     if (skills.includes("calendar") && tool.name === "appointment_manager") return true;
+    if (skills.includes("calendar") && tool.name === "context_manager") return true;
+    if (skills.includes("sales") && tool.name === "context_manager") return true;
     if (skills.includes("history") && tool.name === "history_retriever") return true;
 
     return false;
@@ -36,7 +38,7 @@ export async function modelNode(state: AgentStateType) {
   console.log("🛠️ [MODEL] Tools filtradas:", allowedTools.map(t => t.name));
 
   const baseModel = new ChatGoogleGenerativeAI({
-    modelName: "gemini-2.5-flash-lite", 
+    modelName: "gemini-2.5-flash", 
     maxOutputTokens: 2048,
     temperature: 0.3,
     apiKey: process.env.GEMINI_API_KEY,

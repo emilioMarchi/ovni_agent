@@ -12,15 +12,17 @@ interface EmailData {
 
 async function sendEmail({ to, subject, html }: EmailData) {
   try {
+    console.log(`📧 [EMAIL] Intentando enviar a: ${to} | Asunto: ${subject}`);
     const result = await resend.emails.send({
       from: DEFAULT_FROM,
       to,
       subject,
       html,
     });
+    console.log(`✅ [EMAIL] Enviado con éxito. ID: ${result.data?.id}`);
     return result;
   } catch (error) {
-    console.error("Error enviando email:", error);
+    console.error("❌ [EMAIL] ERROR CRÍTICO AL ENVIAR:", error);
     throw error;
   }
 }

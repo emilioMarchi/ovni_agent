@@ -17,18 +17,19 @@ export interface CalendarTokens {
 
 export async function getCalendarClient(clientId: string) {
   const db = admin.firestore();
-  const configDoc = await db.collection("config").doc(clientId).get();
-  const tokens = configDoc.data()?.googleCalendar?.tokens;
+  // Buscamos el documento del admin por el clientId
+  const adminDoc = await db.collection("admins").doc(clientId).get();
+  const tokens = adminDoc.data()?.googleCalendar?.tokens;
 
   if (!tokens) {
-    throw new Error("Google Calendar no conectado para este cliente");
+    throw new Error("Google Calendar no conectado para este clientId en colección 'admins'");
   }
 
   oauth2Client.setCredentials(tokens);
 
   oauth2Client.on("tokens", async (newTokens: { access_token?: string; expiry_date?: number }) => {
     if (newTokens.access_token) {
-      await db.collection("config").doc(clientId).update({
+      await db.collection("admins").doc(clientId).update({
         "googleCalendar.tokens.access_token": newTokens.access_token,
         "googleCalendar.tokens.expiry_date": newTokens.expiry_date,
       });

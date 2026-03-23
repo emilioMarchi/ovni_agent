@@ -79,12 +79,20 @@ export const AgentState = Annotation.Root({
     default: () => [],
   }),
 
-  /**
-   * Estado interno de herramientas o flujos específicos (ej: "awaiting_payment", "idle").
-   */
+/**
+ * Estado interno de herramientas o flujos específicos (ej: "awaiting_payment", "idle").
+ */
   flowState: Annotation<string>({
     reducer: (old, newest) => newest ?? old,
     default: () => "idle",
+  }),
+
+  /**
+   * ID del hilo de conversación (thread_id) para persistencia.
+   */
+  threadId: Annotation<string>({
+    reducer: (old, newest) => newest ?? old,
+    default: () => "",
   }),
 
   /**

@@ -31,51 +31,41 @@ export const productCatalogTool = new DynamicStructuredTool({
   func: async ({ query, clientId, allowedCategories = [], listAll = false }) => {
     try {
       const db = admin.firestore();
-      const index = pinecone.index("chatbot-knowledge"); // Nombre corregido
+      const index = pinecone.index("chatbot-knowledge");
       const namespace = `products_${clientId}`;
       let results: any[] = [];
 
-      // 1. FLUJO: Listado general si se pide o si la consulta es vacía
       if (listAll || !query.trim()) {
         const snapshot = await db.collection("products")
           .where("clientId", "==", clientId)
           .limit(10)
           .get();
-        results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      } 
-      // 2. FLUJO: Búsqueda Semántica + Búsqueda Directa
-      else {
-        // A. Búsqueda por Embedding
-        const queryVector = await embeddings.embedQuery(query);
-        const searchResult = await index.namespace(namespace).query({
-          vector: queryVector,
-          topK: 10,
-          includeMetadata: true,
-        });
-
-        results = (searchResult.matches || []).map(m => ({ 
-          id: m.id, 
-          score: m.score, 
-          ...m.metadata 
-        }));
-
-        // B. Búsqueda por Texto Directo (simulación simplificada para esta fase)
-        // Nota: En producción esto sería una consulta de Firestore o un filtro más avanzado.
-        const queryLower = query.toLowerCase().trim();
-        const textSnapshot = await db.collection("products")
+        results = snapshot.docs.map(doc => ({ id: doc.id, score: 1, ...doc.data() }));
+      } else {
+        const queryLower = query.toLowerCase();
+        const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+        
+        let snapshot = await db.collection("products")
           .where("clientId", "==", clientId)
-          .where("nombre_search", ">=", queryLower)
-          .where("nombre_search", "<=", queryLower + "\uf8ff")
-          .limit(5)
+          .limit(20)
           .get();
         
-        const directResults = textSnapshot.docs.map(doc => ({ id: doc.id, score: 1.0, ...doc.data() }));
-        
-        // Fusionar y eliminar duplicados
-        const seenIds = new Set(results.map(r => r.id));
-        directResults.forEach(r => {
-          if (!seenIds.has(r.id)) results.push(r);
-        });
+        let results = snapshot.docs
+          .map(doc => ({ id: doc.id, score: 0.5, ...doc.data() }))
+          .filter(p => {
+            const searchText = `${p.nombre} ${p.descripcion || ''} ${p.categoria || ''}`.toLowerCase();
+            return queryWords.some(word => searchText.includes(word));
+          })
+          .map(p => ({ 
+            ...p, 
+            score: p.nombre?.toLowerCase().includes(queryWords[0]) ? 0.9 : 0.5 
+          }));
+
+        if (results.length === 0) {
+          snapshot = await db.collection("products").limit(10).get();
+          results = snapshot.docs
+            .map(doc => ({ id: doc.id, score: 0.3, ...doc.data() }));
+        }
       }
 
       // 3. Filtrado por categorías permitidas
