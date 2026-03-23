@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { getAuthUrl, handleOAuthCallback, createCalendarEvent } from "../../services/calendarService.js";
+import { getAuthUrl, handleOAuthCallback, createCalendarEvent, isCalendarConnected } from "../../services/calendarService.js";
 import admin from "../firebase.js";
 import { sendMeetingConfirmationToUser, sendMeetingCancellationToUser } from "../../services/emailService.js";
 
@@ -68,10 +68,32 @@ router.post("/:meetingId/confirm", async (req: Request, res: Response) => {
     }
 
     const meetingData = meetingDoc.data()!;
+    const clientId = meetingData.clientId;
+
+    let calendarEventId = meetingData.calendarEventId || null;
+
+    const calendarConnected = await isCalendarConnected(clientId);
+    if (calendarConnected && !calendarEventId) {
+      try {
+        const event = await createCalendarEvent(clientId, {
+          date: meetingData.date,
+          time: meetingData.time,
+          customerName: meetingData.customerName,
+          customerEmail: meetingData.customerEmail,
+          customerPhone: meetingData.customerPhone,
+          topic: meetingData.topic,
+          status: "confirmed",
+        });
+        calendarEventId = event.id || null;
+      } catch (calError) {
+        console.warn("No se pudo crear evento en Calendar:", calError);
+      }
+    }
 
     await meetingRef.update({
       status: "confirmed",
       confirmedAt: new Date().toISOString(),
+      calendarEventId,
     });
 
     try {
@@ -85,7 +107,7 @@ router.post("/:meetingId/confirm", async (req: Request, res: Response) => {
       console.warn("No se pudo enviar email de confirmación:", e);
     }
 
-    res.json({ success: true, message: "Reunión confirmada" });
+    res.json({ success: true, message: "Reunión confirmada", calendarEventId });
   } catch (error: any) {
     console.error("Error confirmando reunión:", error);
     res.status(500).json({ success: false, error: error.message });

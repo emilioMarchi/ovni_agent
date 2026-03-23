@@ -70,6 +70,7 @@ export async function sendMeetingRequestToAdmin(adminEmail: string, meetingData:
   date: string;
   time: string;
   topic?: string;
+  meetingId?: string;
 }) {
   const formattedDate = new Date(`${meetingData.date}T${meetingData.time}`).toLocaleString("es-AR", {
     weekday: "long",
@@ -82,6 +83,13 @@ export async function sendMeetingRequestToAdmin(adminEmail: string, meetingData:
     timeZone: "America/Argentina/Buenos_Aires",
   });
 
+  const confirmUrl = meetingData.meetingId 
+    ? `${process.env.APP_URL}/api/meetings/${meetingData.meetingId}/confirm`
+    : `${process.env.APP_URL}/api/meetings/confirm?id=${meetingData.customerEmail}`;
+  const rejectUrl = meetingData.meetingId
+    ? `${process.env.APP_URL}/api/meetings/${meetingData.meetingId}/reject`
+    : `${process.env.APP_URL}/api/meetings/reject?id=${meetingData.customerEmail}`;
+
   const content = `
     <h2>Nueva Solicitud de Reunión</h2>
     <p>Un cliente solicitó una reunión. Por favor confirmá o rechazá.</p>
@@ -93,8 +101,8 @@ export async function sendMeetingRequestToAdmin(adminEmail: string, meetingData:
       <tr><td>Motivo:</td><td>${meetingData.topic || "Consulta General"}</td></tr>
     </table>
     <div style="text-align: center; margin-top: 20px;">
-      <a href="${process.env.APP_URL}/api/meetings/confirm?id=${meetingData.customerEmail}" class="btn">✅ Confirmar</a>
-      <a href="${process.env.APP_URL}/api/meetings/reject?id=${meetingData.customerEmail}" class="btn btn-secondary">❌ Rechazar</a>
+      <a href="${confirmUrl}" class="btn">✅ Confirmar</a>
+      <a href="${rejectUrl}" class="btn btn-secondary">❌ Rechazar</a>
     </div>
   `;
 
