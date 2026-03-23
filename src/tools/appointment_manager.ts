@@ -11,10 +11,13 @@ import { sendMeetingRequestToAdmin } from "../services/emailService.js";
  */
 export const appointmentManagerTool = new DynamicStructuredTool({
   name: "appointment_manager",
-  description: `HERRAMIENTA OBLIGATORIA para agendar reuniones. 
-CUANDO USARLA: Siempre que el usuario mencione agendar, reunión, cita, turno, o quiera saber horarios disponibles.
-DATOS NECESARIOS: nombre, email, fecha (YYYY-MM-DD), hora (HH:mm).
-NO CONFIRMES una reunión sin usar esta herramienta.`,
+  description: `Herramienta para agendar reuniones y consultar disponibilidad. 
+CUANDO USARLA: 
+- action "check_next_days": Cuando el usuario quiera ver los horarios disponibles de los próximos días (antes de agendar)
+- action "check_availability": Para ver horarios de un día específico
+- action "schedule": Cuando el usuario ya eligió fecha/hora y te dio su nombre, email y teléfono
+DATOS PARA SCHEDULE: nombre, email, teléfono (opcional), fecha (YYYY-MM-DD), hora (HH:mm).
+NUNCA uses schedule sin tener todos los datos del usuario.`,
   schema: z.object({
     action: z.enum(["check_availability", "check_next_days", "schedule"]).describe("check_availability=ver horarios de un día, check_next_days=ver disponibilidad próximos días, schedule=agendar reunión."),
     clientId: z.string().describe("ID del cliente/empresa."),
