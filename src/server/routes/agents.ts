@@ -58,6 +58,9 @@ router.post("/", async (req: Request, res: Response) => {
       model,
       temperature,
       maxTokens,
+      type,
+      profile,
+      knowledgeDocs
     } = req.body;
 
     if (!clientId || !name) {
@@ -88,6 +91,9 @@ router.post("/", async (req: Request, res: Response) => {
       model: model || "gemini-2.5-flash-lite",
       temperature: temperature ?? 0.7,
       maxTokens: maxTokens ?? 2048,
+      type: type || "general",
+      profile: profile || "general",
+      knowledgeDocs: knowledgeDocs || [],
       version: "2.0.0",
       active: true,
       createdAt: now,
@@ -112,7 +118,7 @@ router.put("/:id", async (req: Request, res: Response) => {
     const allowedFields = [
       "name", "description", "systemInstruction", "businessContext",
       "skills", "functions", "tools", "model", "temperature",
-      "maxTokens", "active"
+      "maxTokens", "active", "type", "profile", "knowledgeDocs"
     ];
 
     for (const field of allowedFields) {

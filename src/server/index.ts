@@ -6,6 +6,7 @@ import "./firebase.js";
 import authRouter from "./routes/auth.js";
 import adminsRouter from "./routes/admins.js";
 import agentsRouter from "./routes/agents.js";
+import documentsRouter from "./routes/documents.js";
 import chatRouter from "./routes/chat.js";
 import meetingsRouter from "./routes/meetings.js";
 import { validateClientFormat } from "./middleware/auth.js";
@@ -38,6 +39,7 @@ app.get("/health", (_req: Request, res: Response) => {
 app.use("/api/auth", authRouter);
 app.use("/api/admins", adminsRouter);
 app.use("/api/agents", agentsRouter);
+app.use("/api/documents", documentsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/meetings", meetingsRouter);
 
