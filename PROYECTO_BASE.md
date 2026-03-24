@@ -27,5 +27,12 @@ El siguiente paso evolutivo es descentralizar la configuración:
     - Aprobar/Rechazar solicitudes de reuniones de sus clientes.
 - [ ] **Gestión de Agentes**: UI para asignar `skills` y `functions` de forma dinámica por `agentId`.
 
+## 🏗️ Infraestructura y Escalamiento (Fase Producción)
+Mejoras arquitectónicas pendientes para soportar alta demanda:
+- [ ] **Persistencia Robusta**: Migrar `MemorySaver` (actualmente en RAM) a una base de datos persistente (Postgres/Firestore) para mantener conversaciones activas tras reinicios del servidor.
+- [ ] **Rate Limiting**: Implementar limitación de peticiones por IP o `clientId` (via Nginx o middleware Express) para prevenir abusos.
+- [ ] **Logging Estructurado**: Centralizar logs (ej: Winston/Datadog) etiquetados por `clientId` para facilitar depuración en entorno multi-tenant.
+- [ ] **Seguridad Chat**: Implementar tokens temporales o firma de peticiones para el widget de chat, evitando uso no autorizado de la API.
+
 ---
-*Última actualización: 23 de marzo de 2026*
+*Última actualización: 24 de marzo de 2026*

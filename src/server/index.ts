@@ -8,6 +8,7 @@ import adminsRouter from "./routes/admins.js";
 import agentsRouter from "./routes/agents.js";
 import chatRouter from "./routes/chat.js";
 import meetingsRouter from "./routes/meetings.js";
+import { validateClientFormat } from "./middleware/auth.js";
 
 dotenv.config();
 
@@ -21,6 +22,9 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.static("public"));
+
+// Middleware de seguridad básico para headers de cliente
+app.use(validateClientFormat);
 
 app.use((req: Request, _res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
