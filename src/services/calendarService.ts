@@ -159,11 +159,12 @@ export async function handleOAuthCallback(code: string, clientId: string) {
   const { tokens } = await oauth2Client.getToken(code);
   
   const db = admin.firestore();
-  await db.collection("config").doc(clientId).set({
+  // Corregido: Guardar en 'admins' en lugar de 'config'
+  await db.collection("admins").doc(clientId).set({
     googleCalendar: { connected: true, connectedAt: new Date().toISOString() },
   }, { merge: true });
 
-  await db.collection("config").doc(clientId).update({
+  await db.collection("admins").doc(clientId).update({
     "googleCalendar.tokens": tokens,
   });
 
@@ -173,8 +174,9 @@ export async function handleOAuthCallback(code: string, clientId: string) {
 export async function isCalendarConnected(clientId: string): Promise<boolean> {
   try {
     const db = admin.firestore();
-    const configDoc = await db.collection("config").doc(clientId).get();
-    return !!configDoc.data()?.googleCalendar?.tokens;
+    // Corregido: Leer de 'admins' en lugar de 'config'
+    const adminDoc = await db.collection("admins").doc(clientId).get();
+    return !!adminDoc.data()?.googleCalendar?.tokens;
   } catch {
     return false;
   }

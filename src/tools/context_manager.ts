@@ -16,7 +16,7 @@ interface ConversationContext {
 
 const sessionContext: Map<string, ConversationContext> = new Map();
 
-function getSessionContext(threadId: string): ConversationContext {
+export function getSessionData(threadId: string): ConversationContext {
   if (!sessionContext.has(threadId)) {
     sessionContext.set(threadId, {
       userInfo: {},

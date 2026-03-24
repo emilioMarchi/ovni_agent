@@ -41,8 +41,8 @@ router.get("/status", async (req: Request, res: Response) => {
 
   try {
     const db = admin.firestore();
-    const configDoc = await db.collection("config").doc(clientId).get();
-    const calendarConnected = !!configDoc.data()?.googleCalendar?.tokens;
+    const adminDoc = await db.collection("admins").doc(clientId).get();
+    const calendarConnected = !!adminDoc.data()?.googleCalendar?.tokens;
 
     res.json({
       success: true,
@@ -73,8 +73,11 @@ router.all("/:meetingId/confirm", async (req: Request, res: Response) => {
     let calendarEventId = meetingData.calendarEventId || null;
 
     const calendarConnected = await isCalendarConnected(clientId);
+    console.log(`📅 [CALENDAR] Status confirmación ${meetingId} - ClientId: ${clientId} | Conectado: ${calendarConnected} | EventoExistente: ${calendarEventId}`);
+
     if (calendarConnected && !calendarEventId) {
       try {
+        console.log(`📅 [CALENDAR] Iniciando creación de evento en Google Calendar...`);
         const event = await createCalendarEvent(clientId, {
           date: meetingData.date,
           time: meetingData.time,
@@ -84,10 +87,20 @@ router.all("/:meetingId/confirm", async (req: Request, res: Response) => {
           topic: meetingData.topic,
           status: "confirmed",
         });
+        console.log(`✅ [CALENDAR] Evento creado con éxito. Google ID: ${event.id}`);
+        console.log(`🔗 [CALENDAR] Link: ${event.htmlLink}`);
+        
         calendarEventId = event.id || null;
-      } catch (calError) {
-        console.warn("No se pudo crear evento en Calendar:", calError);
+        meetingData.eventLink = event.htmlLink; 
+      } catch (calError: any) {
+        console.error("❌ [CALENDAR] ERROR AL CREAR EVENTO:", calError.message);
+        if (calError.response) {
+            console.error("❌ [CALENDAR] Data error API:", JSON.stringify(calError.response.data));
+        }
       }
+    } else {
+        if (!calendarConnected) console.warn(`⚠️ [CALENDAR] OMITIDO: El calendario NO está conectado para el cliente ${clientId}.`);
+        if (calendarEventId) console.warn(`⚠️ [CALENDAR] OMITIDO: La reunión ya tiene un evento asociado (ID: ${calendarEventId}).`);
     }
 
     await meetingRef.update({
@@ -102,6 +115,7 @@ router.all("/:meetingId/confirm", async (req: Request, res: Response) => {
         date: meetingData.date,
         time: meetingData.time,
         topic: meetingData.topic,
+        eventLink: meetingData.eventLink, // Pasar el eventLink a la función de envío de correo
       });
     } catch (e) {
       console.warn("No se pudo enviar email de confirmación:", e);

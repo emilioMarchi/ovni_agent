@@ -78,6 +78,7 @@ REGLAS ABSOLUTAS - PROHIBIDO INVENTAR
 ✅ SOLO PUEDES PEDIR:
 - Nombre (si el usuario no lo dio)
 - Email (si el usuario no lo dio)
+- Teléfono (si el usuario no lo dio)
 - Fecha y hora (si el usuario no la dijo claramente)
 `;
 }
@@ -164,7 +165,7 @@ Usá esta info como fuente de verdad. Si falta algo, complementá con tu conocim
 
     // Info de sesión para herramientas internas
     const sessionInfo = threadId 
-      ? `\n📋 ID de sesión: ${threadId} (usalo cuando llames a context_manager)\n`
+      ? `\n📋 ID de sesión: ${threadId} (usalo OBLIGATORIAMENTE en "context_manager" y "appointment_manager" para no perder datos del usuario)\n`
       : "";
 
     // Separamos la personalidad de las reglas operativas
@@ -204,7 +205,10 @@ ${personaInstruction}
    - SI TIENES DUDAS, usa "context_manager" con action="get_summary".
 
 2. INTENCIÓN DE REUNIÓN ("agendar", "reunión", "cita", "turno"):
-   -> EJECUTA INMEDIATAMENTE: appointment_manager({ action: "check_next_days", ... })
+   -> PRIMERO: Si falta el Nombre, Email o Teléfono del usuario, PÍDELOS CLARAMENTE.
+   -> DESPUÉS (si ya tienes Nombre, Email y Teléfono del usuario):
+      -> SI el usuario ya proporcionó una fecha y hora específicas: EJECUTA appointment_manager({ action: "schedule", ... })
+      -> SINO: EJECUTA INMEDIATAMENTE appointment_manager({ action: "check_next_days", ... })
    -> PROHIBIDO preguntar "¿qué día prefieres?" antes de buscar.
 
 3. INTENCIÓN DE COMPRA ("precios", "catálogo", "productos"):

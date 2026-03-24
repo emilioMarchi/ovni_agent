@@ -61,12 +61,16 @@ npm run dev:server
 ---
 *Estado actual: v2.0.0-PROD (Arquitectura Matrix 6.0 validada)*
 
-## 🚧 Fase 8: Mejoras de Agendado (En Progreso)
-- [x] Agregar action `check_next_days` en appointment_manager (disponibilidad próximos 3-5 días)
-- [x] Refinar Prompt para consulta proactiva de disponibilidad.
-- [ ] No crear evento en Calendar al solicitar (solo al confirmar)
-- [ ] Actualizar evento en Calendar cuando admin confirma
-- [ ] Enviar email de confirmación al cliente al confirmar reunión
+## ✅ Fase 8: Mejoras de Agendado y UX - COMPLETADO
+- [x] Agregar action `check_next_days` en appointment_manager.
+- [x] Refinar Prompt para consulta proactiva de disponibilidad y recolección obligatoria de datos (Nombre, Email, Teléfono).
+- [x] **Calendar**: No crear evento al solicitar; crear solo al confirmar por Admin.
+- [x] **Calendar**: Corregir almacenamiento y lectura de tokens en colección `admins`.
+- [x] **Emails**: Diseño profesional "Dark Mode" con logo de OVNI STUDIO.
+- [x] **Emails**: Notificación inmediata al usuario "Solicitud Recibida".
+- [x] **Emails**: Confirmación final con link directo al evento de Google Calendar.
+- [x] **UX Admin**: Agregar logo y branding en Panel Master Admin.
+- [x] **UX**: Agregar favicon a paneles y widgets.
 
 ### Mejoras opcionales del Builder (Futuro):
 - [ ] Agregar flujos por config Firestore (campo `workflows` por agente)
