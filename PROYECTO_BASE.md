@@ -15,10 +15,12 @@ Evolución del proyecto `chatbot-redes` hacia una arquitectura de **Agente Autó
 - **Integración Calendar**: Sincronización vía OAuth 2.0 por cliente, con manejo de tokens en Firestore (`admins` collection).
 
 ## 🚀 Avances Recientes (27/03/26)
-- **Persistencia de Sesiones**: El widget ahora usa localStorage para mantener el threadId entre visitas, permitiendo retomar conversaciones sin perder contexto.
-- **Agendado Inteligente**: El agente ahora consulta disponibilidad de forma proactiva al detectar intención de reunión, evitando alucinaciones mediante el uso estricto de herramientas.
-- **Ciclo de Vida de Reunión**: Implementado el proceso de solicitud (pendiente) y confirmación vía email (POST/GET a `/api/meetings/:id/confirm`).
-- **Sincronización Calendar**: Integración con Google Calendar configurada por cliente, almacenando tokens de acceso en la colección `admins`.
+- **Historial de Sesiones con IA**: Cada conversación se analiza con Gemini para generar:
+  - Resumen automático de la conversación
+  - Clasificación: tipo (lead/conversation/support), nivel de interés, intenciones, temas, sentimiento
+- **Endpoints de Sesiones**: `GET /api/chat/sessions` y `GET /api/chat/sessions/:threadId`
+- **Persistencia de Sesiones**: El widget usa localStorage para mantener el threadId entre visitas.
+- **Agendado Inteligente**: El agente ahora consulta disponibilidad de forma proactiva al detectar intención de reunión.
 
 ## 📋 Road Map de Administración (Panel Admin v2)
 El siguiente paso evolutivo es descentralizar la configuración:
