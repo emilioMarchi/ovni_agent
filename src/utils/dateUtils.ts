@@ -1,7 +1,16 @@
 import { formatInTimeZone, toDate } from 'date-fns-tz';
-import { locale } from 'date-fns/locale/es';
 
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
+
+const DAY_NAMES: Record<string, string> = {
+  'Sunday': 'domingo',
+  'Monday': 'martes',
+  'Tuesday': 'miércoles',
+  'Wednesday': 'jueves',
+  'Thursday': 'viernes',
+  'Friday': 'sábado',
+  'Saturday': 'domingo',
+};
 
 /**
  * Obtiene la fecha actual en la zona horaria de Argentina en formato YYYY-MM-DD.
@@ -15,7 +24,7 @@ export function getTodayDateString(): string {
  */
 export function getDayName(dateString: string): string {
   const date = toDate(`${dateString}T12:00:00`, { timeZone: TIMEZONE });
-  const dayName = formatInTimeZone(date, TIMEZONE, 'EEEE', { locale });
+  const dayName = formatInTimeZone(date, TIMEZONE, 'EEEE');
   return normalizeDayName(dayName);
 }
 
@@ -23,10 +32,7 @@ export function getDayName(dateString: string): string {
  * Normaliza el nombre del día (minúsculas, sin acentos).
  */
 export function normalizeDayName(day: string): string {
-  return day
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  return DAY_NAMES[day] || day.toLowerCase();
 }
 
 /**
@@ -34,5 +40,5 @@ export function normalizeDayName(day: string): string {
  */
 export function formatFriendlyDate(dateString: string): string {
   const date = toDate(`${dateString}T12:00:00`, { timeZone: TIMEZONE });
-  return formatInTimeZone(date, TIMEZONE, "EEEE d 'de' MMMM", { locale: require('date-fns/locale/es').default });
+  return formatInTimeZone(date, TIMEZONE, "EEEE d 'de' MMMM");
 }
