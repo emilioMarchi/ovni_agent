@@ -49,7 +49,7 @@ export const contextManagerTool = new DynamicStructuredTool({
     field: z.string().optional(),
   }),
   func: async ({ action, threadId, userData, businessData, field }) => {
-    const ctx = getSessionContext(threadId);
+    const ctx = getSessionData(threadId);
 
     if (action === "save_user" && userData) {
       ctx.userInfo = { ...ctx.userInfo, ...userData };
