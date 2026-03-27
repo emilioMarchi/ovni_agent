@@ -1618,7 +1618,7 @@
                   <div style="font-size:11px;color:var(--text-muted)">${date}</div>
                   <div style="display:flex;gap:6px;align-items:center">${typeBadge} <span>${interestBadge}</span></div>
                 </div>
-                <div style="font-size:13px;font-weight:500;margin-bottom:4px;color:var(--text-primary)">${(s.userName || (s.userId && s.userId !== 'anonymous' ? s.userId.slice(0, 20) : 'Anónimo'))}</div>
+                <div style="font-size:13px;font-weight:500;margin-bottom:4px;color:var(--text-primary)">${s.userName || 'Anónimo'}</div>
                 <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;line-height:1.4">${s.summary ? s.summary.slice(0, 80) + (s.summary.length > 80 ? '...' : '') : 'Resumen sin generar'}</div>
                 <div style="font-size:11px;color:var(--text-muted)">${s.messageCount} mensajes</div>
               </div>

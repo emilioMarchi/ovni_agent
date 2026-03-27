@@ -199,12 +199,14 @@ router.get("/sessions", async (req: Request, res: Response) => {
           console.log('Error fetching user name:', e);
         }
       }
+
+      const displayName = userName || (data.threadId ? `Usuario-${data.threadId.slice(0, 8)}` : 'Anónimo');
       
       return {
         threadId: data.threadId,
         agentId: data.agentId,
         userId: data.userId,
-        userName,
+        userName: displayName,
         lastUpdate: data.lastUpdate?.toDate?.() ? data.lastUpdate.toDate().toISOString() : null,
         messageCount: data.messages?.length || 0,
         summary: data.summary,
