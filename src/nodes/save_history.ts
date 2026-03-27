@@ -4,6 +4,11 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { analyzeSession } from "../services/sessionAnalyzer.js";
 
 const MAX_MESSAGE_LENGTH = 2000;
+const SYSTEM_MESSAGES = ['[SESIÓN FINALIZADA]', '[SESION FINALIZADA]'];
+
+function isSystemMessage(content: string): boolean {
+  return SYSTEM_MESSAGES.some(sys => content.includes(sys));
+}
 
 function cleanMessageContent(content: string, role: string): string {
   if (role === "tool") {
@@ -38,7 +43,9 @@ export async function saveHistoryNode(state: AgentStateType) {
     const serializableMessages = messages
       .filter(msg => {
         const role = msg instanceof HumanMessage ? 'user' : msg instanceof AIMessage ? 'assistant' : msg instanceof ToolMessage ? 'tool' : 'unknown';
-        return role !== 'tool';
+        if (role === 'tool') return false;
+        if (role === 'user' && isSystemMessage(msg.content as string)) return false;
+        return true;
       })
       .map(msg => {
         let role = "unknown";
@@ -55,8 +62,10 @@ export async function saveHistoryNode(state: AgentStateType) {
     let summary: string | undefined;
     let classification: any = undefined;
 
-    if (endSession) {
-      const userAndAssistantMessages = serializableMessages.filter(m => m.role === "user" || m.role === "assistant");
+    const userAndAssistantMessages = serializableMessages.filter(m => m.role === "user" || m.role === "assistant");
+    const hasRealMessages = userAndAssistantMessages.some(m => m.role === 'user' && m.content && m.content.length > 5 && !isSystemMessage(m.content));
+
+    if (endSession && hasRealMessages) {
       const now = new Date();
       const sessionDate = formatSessionDate(now);
       const analysis = await analyzeSession(userAndAssistantMessages, userName);
