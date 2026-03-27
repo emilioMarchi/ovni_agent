@@ -34,6 +34,7 @@ export async function saveHistoryNode(state: AgentStateType) {
       clientId: clientId || "unknown",
       agentId: agentId || "unknown",
       userId,
+      threadId: state.threadId,
       messages: serializableMessages,
       lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });

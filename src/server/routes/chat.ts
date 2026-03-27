@@ -138,18 +138,21 @@ router.get("/history/:threadId", async (req: Request, res: Response) => {
   try {
     const { threadId } = req.params;
     
+    // Buscar en colección history por threadId
     const snapshot = await db
-      .collection("conversations")
-      .doc(threadId)
-      .collection("messages")
-      .orderBy("createdAt", "asc")
+      .collection("history")
+      .where("threadId", "==", threadId)
+      .limit(1)
       .get();
 
-    const messages = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    if (snapshot.empty) {
+      return res.json({ success: true, data: [] });
+    }
 
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+    const messages = data.messages || [];
+    
     res.json({ success: true, data: messages });
   } catch (error) {
     console.error("Error fetching history:", error);
@@ -175,6 +178,7 @@ router.get("/agents", async (req: Request, res: Response) => {
       id: doc.id,
       name: doc.data().name,
       description: doc.data().description,
+      welcomeMessage: doc.data().welcomeMessage,
     }));
 
     res.json({ success: true, data: agents });

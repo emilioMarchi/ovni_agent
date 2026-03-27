@@ -4,231 +4,296 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OVNI Chat Widget</title>
-  <link rel="icon" href="/logo.png" type="image/png">
   <style>
+    :root {
+      --primary-bg: #b0c4de;
+      --border-color: #e5e1da;
+      --text-color: #1a1a1a;
+      --agent-bubble-border: #6c88a3;
+      --user-bubble-border: #8b7d6b;
+    }
+    
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
-    :root {
-      --ovni-primary: #6366f1;
-      --ovni-primary-dark: #4f46e5;
-      --ovni-bg: #1e1b4b;
-      --ovni-surface: #312e81;
-      --ovni-text: #e0e7ff;
-      --ovni-text-muted: #a5b4fc;
+    body, html {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: transparent;
     }
     
     .ovni-widget {
       position: fixed;
       bottom: 20px;
       right: 20px;
-      font-family: system-ui, -apple-system, sans-serif;
       z-index: 999999;
     }
     
     .ovni-toggle {
-      width: 60px;
-      height: 60px;
+      width: 55px;
+      height: 55px;
       border-radius: 50%;
-      background: var(--ovni-primary);
-      border: none;
+      background: var(--primary-bg);
+      border: 2px solid var(--border-color);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+      padding: 2px;
     }
     
     .ovni-toggle:hover {
-      transform: scale(1.05);
-      box-shadow: 0 6px 25px rgba(99, 102, 241, 0.5);
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
     }
     
-    .ovni-toggle svg { width: 28px; height: 28px; fill: white; }
+    .ovni-toggle img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
     
-    .ovni-toggle.open svg.icon-chat { display: none; }
-    .ovni-toggle svg.icon-close { display: none; }
+    .ovni-toggle svg.icon-close {
+      display: none;
+      width: 24px;
+      height: 24px;
+      fill: var(--text-color);
+      opacity: 0.6;
+    }
+    
+    .ovni-toggle.open img { display: none; }
     .ovni-toggle.open svg.icon-close { display: block; }
     
     .ovni-window {
       position: absolute;
-      bottom: 75px;
+      bottom: 70px;
       right: 0;
-      width: 380px;
-      height: 550px;
-      background: var(--ovni-bg);
-      border-radius: 16px;
+      width: 320px;
+      height: 450px;
+      background: var(--primary-bg);
+      border: 2px solid var(--border-color);
+      border-radius: 18px;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
       opacity: 0;
       visibility: hidden;
-      transform: translateY(20px) scale(0.95);
-      transition: all 0.3s ease;
+      transform: translateY(10px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .ovni-window.open {
       opacity: 1;
       visibility: visible;
-      transform: translateY(0) scale(1);
+      transform: translateY(0);
     }
     
     .ovni-header {
-      background: var(--ovni-surface);
-      padding: 16px;
+      padding: 18px 15px 10px;
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 12px;
+      border-bottom: 1px solid rgba(229, 225, 218, 0.5);
     }
-    
-    .ovni-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: var(--ovni-primary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    .ovni-avatar svg { width: 24px; height: 24px; fill: white; }
     
     .ovni-header-info h3 {
-      color: var(--ovni-text);
-      font-size: 16px;
-      font-weight: 600;
-    }
-    
-    .ovni-header-info p {
-      color: var(--ovni-text-muted);
-      font-size: 12px;
+      color: var(--text-color);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
     }
     
     .ovni-messages {
       flex: 1;
       overflow-y: auto;
-      padding: 16px;
+      padding: 15px;
       display: flex;
       flex-direction: column;
       gap: 12px;
+      scrollbar-width: none;
     }
     
-    .ovni-message {
-      max-width: 85%;
-      padding: 12px 16px;
-      border-radius: 16px;
-      font-size: 14px;
-      line-height: 1.4;
-      animation: ovni-fade-in 0.3s ease;
+    .ovni-messages::-webkit-scrollbar { display: none; }
+
+    .empty-chat-hint {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-color);
+      opacity: 0.3;
+      font-size: 13px;
+      text-align: center;
+      padding: 20px;
+      animation: message-in 0.6s ease forwards;
     }
     
-    @keyframes ovni-fade-in {
-      from { opacity: 0; transform: translateY(10px); }
+    .message-container {
+      display: flex;
+      width: 100%;
+      opacity: 0;
+      transform: translateY(10px);
+      animation: message-in 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    }
+    
+    @keyframes message-in {
       to { opacity: 1; transform: translateY(0); }
     }
     
+    .message-container.user { justify-content: flex-end; }
+    .message-container.assistant { justify-content: flex-start; gap: 8px; }
+    
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--border-color);
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    
+    .ovni-message {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      word-wrap: break-word;
+      background: transparent;
+      color: var(--text-color);
+    }
+    
     .ovni-message.user {
-      background: var(--ovni-primary);
-      color: white;
-      align-self: flex-end;
+      border: 1px solid var(--user-bubble-border);
       border-bottom-right-radius: 4px;
     }
     
     .ovni-message.assistant {
-      background: var(--ovni-surface);
-      color: var(--ovni-text);
-      align-self: flex-start;
+      border: 1px solid var(--agent-bubble-border);
       border-bottom-left-radius: 4px;
     }
     
-    .ovni-message.typing {
-      display: flex;
-      gap: 4px;
-      padding: 16px;
+    .typing-indicator {
+      display: inline-flex;
+      gap: 5px;
+      padding: 4px 8px;
     }
     
-    .ovni-message.typing span {
-      width: 8px;
-      height: 8px;
-      background: var(--ovni-text-muted);
+    .dot {
+      width: 5px;
+      height: 5px;
+      background-color: var(--agent-bubble-border);
       border-radius: 50%;
-      animation: ovni-bounce 1.4s infinite ease-in-out;
+      animation: bounce 1.4s infinite ease-in-out both;
+      opacity: 0.6;
     }
     
-    .ovni-message.typing span:nth-child(1) { animation-delay: 0s; }
-    .ovni-message.typing span:nth-child(2) { animation-delay: 0.2s; }
-    .ovni-message.typing span:nth-child(3) { animation-delay: 0.4s; }
+    .dot:nth-child(1) { animation-delay: -0.32s; }
+    .dot:nth-child(2) { animation-delay: -0.16s; }
     
-    @keyframes ovni-bounce {
-      0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-      40% { transform: scale(1); opacity: 1; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+      40% { transform: scale(1.2); opacity: 1; }
     }
     
     .ovni-input-area {
-      padding: 12px 16px;
-      background: var(--ovni-surface);
+      padding: 12px 15px 20px;
+      background: transparent;
       display: flex;
-      gap: 8px;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .input-wrapper {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
     }
     
     .ovni-input {
-      flex: 1;
-      background: var(--ovni-bg);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      border-radius: 24px;
-      padding: 10px 16px;
-      color: var(--ovni-text);
-      font-size: 14px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 9px 40px 9px 15px;
       outline: none;
+      font-size: 14px;
+      color: var(--text-color);
       transition: border-color 0.2s;
     }
     
-    .ovni-input:focus { border-color: var(--ovni-primary); }
-    .ovni-input::placeholder { color: var(--ovni-text-muted); }
+    .ovni-input::placeholder { color: rgba(26, 26, 26, 0.4); }
+    .ovni-input:focus { border-color: var(--agent-bubble-border); background: rgba(255, 255, 255, 0.2); }
     
-    .ovni-send {
-      width: 44px;
-      height: 44px;
-      background: var(--ovni-primary);
+    .audio-trigger {
+      position: absolute;
+      right: 12px;
+      background: none;
       border: none;
-      border-radius: 50%;
+      padding: 0;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.2s;
+      color: var(--text-color);
+      opacity: 0.4;
+      transition: opacity 0.2s;
     }
     
-    .ovni-send:hover { background: var(--ovni-primary-dark); }
-    .ovni-send svg { width: 20px; height: 20px; fill: white; }
-    .ovni-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ovni-send {
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-color);
+      opacity: 0.6;
+      transition: all 0.2s;
+    }
+    
+    .ovni-send:hover { opacity: 1; transform: translateX(2px); }
+    .ovni-send:disabled { opacity: 0.2; cursor: default; }
+    
+    @media (max-width: 480px) {
+      .ovni-window {
+        width: calc(100vw - 40px);
+        height: 60vh;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="ovni-widget" id="ovniWidget">
     <div class="ovni-window" id="ovniWindow">
       <div class="ovni-header">
-        <div class="ovni-avatar">
-          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-        </div>
         <div class="ovni-header-info">
-          <h3 id="agentName">Cargando...</h3>
-          <p>En línea</p>
+          <h3 id="agentName">Asistente</h3>
         </div>
       </div>
       <div class="ovni-messages" id="ovniMessages">
-        <div class="ovni-message assistant">¡Hola! Soy tu asistente virtual. ¿En qué puedo ayudarte hoy?</div>
+        <!-- Mensajes aquí -->
       </div>
       <div class="ovni-input-area">
-        <input type="text" class="ovni-input" id="ovniInput" placeholder="Escribe tu mensaje..." autocomplete="off">
+        <div class="input-wrapper">
+          <input type="text" class="ovni-input" id="ovniInput" placeholder="Mensaje..." autocomplete="off">
+          <button class="audio-trigger" title="Audio próximamente">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </button>
+        </div>
         <button class="ovni-send" id="ovniSend">
-          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
       </div>
     </div>
     <button class="ovni-toggle" id="ovniToggle">
-      <svg class="icon-chat" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+      <img src="/logo.png" alt="OVNI">
       <svg class="icon-close" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
     </button>
   </div>
@@ -236,7 +301,7 @@
   <script>
     class OvniChatWidget {
       constructor(config) {
-        this.apiUrl = config.apiUrl || 'http://localhost:8080';
+        this.apiUrl = config.apiUrl || window.location.origin;
         this.agentId = config.agentId;
         this.clientId = config.clientId;
         this.threadId = localStorage.getItem('ovni_thread_' + this.agentId);
@@ -248,9 +313,8 @@
 
       init() {
         const toggle = document.getElementById('ovniToggle');
-        const window = document.getElementById('ovniWindow');
-        const input = document.getElementById('ovniInput');
         const send = document.getElementById('ovniSend');
+        const input = document.getElementById('ovniInput');
 
         toggle.addEventListener('click', () => this.toggle());
         send.addEventListener('click', () => this.sendMessage());
@@ -270,39 +334,124 @@
         
         window.classList.toggle('open', this.isOpen);
         toggle.classList.toggle('open', this.isOpen);
+        
+        if (this.isOpen) {
+          document.getElementById('ovniInput').focus();
+        }
       }
 
       async loadAgentInfo() {
         try {
-          const res = await fetch(`${this.apiUrl}/api/chat/agents?clientId=${this.clientId}`);
+          const res = await fetch(`${this.apiUrl}/api/chat/agents?clientId=${this.clientId}`, {
+            headers: {
+              'x-client-id': this.clientId
+            }
+          });
           const data = await res.json();
           
           if (data.success && data.data.length > 0) {
             const agent = data.data.find(a => a.id === this.agentId) || data.data[0];
-            document.getElementById('agentName').textContent = agent.name;
+            const agentName = agent.name || 'Asistente';
+            document.getElementById('agentName').textContent = agentName;
+            
+            // Si hay un mensaje de bienvenida configurado y no hay threadId (nueva sesión), mostrarlo
+            if (agent.welcomeMessage && agent.welcomeMessage.trim() !== '' && !this.threadId) {
+              await this.addSequentialMessages(agent.welcomeMessage);
+            } else if (!this.threadId) {
+              // Si no hay mensaje de bienvenida ni threadId, mostrar invitación
+              this.showEmptyHint(agentName);
+            }
+            // Si hay threadId, se retomará la conversación automáticamente
+            if (this.threadId) {
+              await this.loadHistory();
+            }
           }
         } catch (err) {
           console.error('Error loading agent info:', err);
         }
       }
 
-      addMessage(content, type) {
+      async loadHistory() {
+        try {
+          const res = await fetch(`${this.apiUrl}/api/chat/history/${this.threadId}`);
+          const data = await res.json();
+          
+          if (data.success && data.data && data.data.length > 0) {
+            const hint = document.getElementById('emptyChatHint');
+            if (hint) hint.remove();
+            
+            for (const msg of data.data) {
+              const type = msg.role === 'user' ? 'user' : 'assistant';
+              this.addMessage(msg.content, type);
+            }
+          }
+        } catch (err) {
+          console.error('Error loading history:', err);
+        }
+      }
+
+      showEmptyHint(name) {
         const container = document.getElementById('ovniMessages');
-        const msg = document.createElement('div');
-        msg.className = `ovni-message ${type}`;
-        msg.textContent = content;
-        container.appendChild(msg);
+        const hint = document.createElement('div');
+        hint.className = 'empty-chat-hint';
+        hint.id = 'emptyChatHint';
+        hint.innerHTML = `<p>Escribile a ${name}</p>`;
+        container.appendChild(hint);
+      }
+
+      addMessage(content, type) {
+        // Eliminar el hint si existe al recibir el primer mensaje
+        const hint = document.getElementById('emptyChatHint');
+        if (hint) hint.remove();
+
+        const container = document.getElementById('ovniMessages');
+        const wrapper = document.createElement('div');
+        wrapper.className = `message-container ${type}`;
+        
+        let html = '';
+        if (type === 'assistant') {
+          html += `<img src="/logo.png" class="avatar">`;
+        }
+        
+        // Convertir saltos de línea simples en <br> para mantener formato dentro de la burbuja
+        const formattedContent = content.replace(/\n/g, '<br>');
+        html += `<div class="ovni-message ${type}">${formattedContent}</div>`;
+        wrapper.innerHTML = html;
+        
+        container.appendChild(wrapper);
         container.scrollTop = container.scrollHeight;
-        return msg;
+        return wrapper;
+      }
+
+      async addSequentialMessages(content) {
+        // Dividir por párrafos (doble salto de línea)
+        const paragraphs = content.split(/\n\n+/).filter(p => p.trim() !== '');
+        
+        for (let i = 0; i < paragraphs.length; i++) {
+          if (i > 0) {
+            // Mostrar indicador de escritura entre burbujas para naturalidad
+            this.showTyping();
+            await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
+            this.hideTyping();
+          }
+          this.addMessage(paragraphs[i].trim(), 'assistant');
+        }
       }
 
       showTyping() {
         const container = document.getElementById('ovniMessages');
-        const msg = document.createElement('div');
-        msg.className = 'ovni-message assistant typing';
-        msg.id = 'typingIndicator';
-        msg.innerHTML = '<span></span><span></span><span></span>';
-        container.appendChild(msg);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'message-container assistant typing-indicator-wrapper';
+        wrapper.id = 'typingIndicator';
+        wrapper.innerHTML = `
+          <img src="/logo.png" class="avatar">
+          <div class="ovni-message assistant">
+            <div class="typing-indicator">
+              <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+          </div>
+        `;
+        container.appendChild(wrapper);
         container.scrollTop = container.scrollHeight;
       }
 
@@ -316,7 +465,6 @@
         const send = document.getElementById('ovniSend');
         const input = document.getElementById('ovniInput');
         send.disabled = loading;
-        input.disabled = loading;
       }
 
       async sendMessage() {
@@ -333,7 +481,10 @@
         try {
           const res = await fetch(`${this.apiUrl}/api/chat/invoke`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-client-id': this.clientId
+            },
             body: JSON.stringify({
               agentId: this.agentId,
               clientId: this.clientId,
@@ -348,20 +499,32 @@
           if (data.success) {
             this.threadId = data.data.threadId;
             localStorage.setItem('ovni_thread_' + this.agentId, this.threadId);
-            this.addMessage(data.data.response, 'assistant');
+            
+            await this.addSequentialMessages(data.data.response);
           } else {
             this.addMessage('Lo siento, hubo un error. Intenta de nuevo.', 'assistant');
           }
         } catch (err) {
           this.hideTyping();
-          this.addMessage('Error de conexión. Verifica tu internet.', 'assistant');
+          this.addMessage('Error de conexión con el servidor.', 'assistant');
         }
 
         this.setLoading(false);
+        input.focus();
       }
     }
 
-    window.OvniChatWidget = OvniChatWidget;
+    // Inicializar el widget automáticamente si hay parámetros en la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const agentId = urlParams.get('agentId');
+    const clientId = urlParams.get('clientId');
+    
+    if (agentId && clientId) {
+      window.ovniChat = new OvniChatWidget({ agentId, clientId });
+    } else {
+      // Para pruebas locales o integración manual
+      window.OvniChatWidget = OvniChatWidget;
+    }
   </script>
 </body>
 </html>
