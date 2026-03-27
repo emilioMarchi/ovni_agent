@@ -96,6 +96,14 @@ export const AgentState = Annotation.Root({
   }),
 
   /**
+   * Flag para indicar fin de sesión (para generar resumen).
+   */
+  endSession: Annotation<boolean>({
+    reducer: (old, newest) => newest ?? old,
+    default: () => false,
+  }),
+
+  /**
    * Contexto recuperado del RAG (pre-fetch antes del modelo).
    */
   ragContext: Annotation<string>({

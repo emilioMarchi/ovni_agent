@@ -1,7 +1,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
 const model = new ChatGoogleGenerativeAI({
-  modelName: "gemini-2.0-flash",
+  modelName: "gemini-2.5-flash",
   temperature: 0.2,
   apiKey: process.env.GEMINI_API_KEY,
 });
@@ -19,43 +19,34 @@ export interface SessionAnalysis {
   classification: SessionClassification;
 }
 
-export async function analyzeSession(messages: any[]): Promise<SessionAnalysis> {
+export async function analyzeSession(messages: any[], userName?: string | null): Promise<SessionAnalysis> {
   const userMessages = messages
     .filter(m => m.role === "user")
-    .map(m => m.content)
+    .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
     .join("\n");
 
-  const assistantMessages = messages
-    .filter(m => m.role === "assistant")
-    .map(m => m.content)
-    .join("\n");
-
-  const prompt = `Analiza esta conversación entre un usuario y un asistente virtual. 
+  const prompt = `Analiza SOLO los mensajes del usuario en esta conversación. 
+El usuario${userName ? ` se llama ${userName}` : ''}.
 Devuelve SOLO un JSON válido (sin markdown, sin texto adicional) con esta estructura:
 
 {
-  "summary": "Resumen de 2-3 oraciones sobre qué trata la conversación",
+  "summary": "Resumen de 1-2 oraciones sobre qué necesitaba o consultó el usuario (no lo que respondió el asistente)",
   "classification": {
     "type": "lead" | "conversation" | "support",
     "interestLevel": "high" | "medium" | "low",
-    "intentions": ["intención 1", "intención 2"],
-    "topics": ["tema 1", "tema 2"],
+    "intentions": ["intención principal del usuario"],
+    "topics": ["temas que consultó el usuario"],
     "sentiment": "positive" | "neutral" | "negative"
   }
 }
 
-指南:
-- "type": "lead" si el usuario показал interés en comprar/contactar, "support" si busca ayuda técnica, "conversation" otherwise
-- "interestLevel": "high" si запросó presupuesto o reunión, "medium" si hizo preguntas sobre productos, "low" si solo consultó información general
-- "intentions": las intenciones principales del usuario (ej: "comprar producto", "consultar precio", "soporte técnico")
-- "topics": temas detectados (ej: "productos", "precios", "servicios", " técnico")
-- "sentiment": sentimiento general de la conversación
+Guía:
+- "summary": Qué quería el usuario, no qué se le respondió. Ej: "Usuario consultó por servicios de desarrollo web"
+- "type": "lead" si pidió presupuesto/contacto, "support" si necesitaba ayuda, "conversation" para consultas generales
+- "interestLevel": "high" si pidió reunión/presupuesto, "medium" si preguntó detalles de productos, "low" si solo saludó o consultó info general
 
 Mensajes del usuario:
-${userMessages.slice(0, 2000)}
-
-Respuestas del asistente:
-${assistantMessages.slice(0, 2000)}`;
+${userMessages.slice(0, 1500)}`;
 
   try {
     const result = await model.invoke(prompt);

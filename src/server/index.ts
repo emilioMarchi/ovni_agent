@@ -68,8 +68,15 @@ app.listen(PORT, () => {
 ║  ├── GET    /api/agents/:id            - Ver agente      ║
 ║  ├── PUT    /api/agents/:id            - Editar agente  ║
 ║  ├── DELETE /api/agents/:id            - Eliminar agente ║
+║  ├── GET    /api/documents             - Listar docs      ║
+║  ├── POST   /api/documents/upload      - Subir documento ║
+║  ├── GET    /api/documents/:id         - Ver documento   ║
+║  ├── DELETE /api/documents/:id         - Eliminar doc    ║
 ║  ├── POST   /api/chat/invoke            - Invocar agente  ║
-║  └── POST   /api/chat/stream            - Stream agente   ║
+║  ├── POST   /api/chat/stream            - Stream agente   ║
+║  ├── GET    /api/chat/sessions         - Listar sesiones ║
+║  ├── GET    /api/chat/sessions/:id     - Ver sesión      ║
+║  └── GET    /api/chat/history/:id      - Ver historial   ║
 ║                                                           ║
 ║  Panel Admin: http://localhost:${PORT}/master-admin.html       ║
 ║  Contraseña: admin123                                     ║

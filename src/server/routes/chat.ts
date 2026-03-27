@@ -11,11 +11,12 @@ interface ChatRequest {
   threadId?: string;
   clientId?: string;
   metadata?: Record<string, unknown>;
+  endSession?: boolean;
 }
 
 router.post("/invoke", async (req: Request, res: Response) => {
   try {
-    const { agentId, message, threadId, clientId: bodyClientId } = req.body as ChatRequest;
+    const { agentId, message, threadId, clientId: bodyClientId, endSession } = req.body as ChatRequest;
 
     if (!agentId || !message) {
       return res.status(400).json({ 
@@ -50,9 +51,10 @@ router.post("/invoke", async (req: Request, res: Response) => {
       agentId,
       clientId: clientId || "unknown",
       threadId: threadId || crypto.randomUUID(),
+      endSession: endSession || false,
     };
 
-    console.log(`📨 Invocando agente ${agentId} para cliente ${clientId}`);
+    console.log(`📨 Invocando agente ${agentId} para cliente ${clientId}${endSession ? ' (FIN DE SESIÓN)' : ''}`);
 
     const result = await graph.invoke(inputState, config);
 
@@ -167,16 +169,20 @@ router.get("/sessions", async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: "clientId es requerido" });
     }
 
-    let query = db.collection("history").where("clientId", "==", clientId as string);
+    let snapshot;
     
     if (agentId) {
-      query = query.where("agentId", "==", agentId as string);
+      snapshot = await db.collection("history")
+        .where("clientId", "==", clientId as string)
+        .where("agentId", "==", agentId as string)
+        .limit(parseInt(limit as string))
+        .get();
+    } else {
+      snapshot = await db.collection("history")
+        .where("clientId", "==", clientId as string)
+        .limit(parseInt(limit as string))
+        .get();
     }
-
-    const snapshot = await query
-      .orderBy("lastUpdate", "desc")
-      .limit(parseInt(limit as string))
-      .get();
 
     const sessions = snapshot.docs.map(doc => {
       const data = doc.data();
@@ -184,17 +190,24 @@ router.get("/sessions", async (req: Request, res: Response) => {
         threadId: data.threadId,
         agentId: data.agentId,
         userId: data.userId,
-        lastUpdate: data.lastUpdate?.toDate?.() || data.lastUpdate,
+        userName: data.userName || null,
+        lastUpdate: data.lastUpdate?.toDate?.() ? data.lastUpdate.toDate().toISOString() : null,
         messageCount: data.messages?.length || 0,
         summary: data.summary,
         classification: data.classification,
       };
     });
 
+    sessions.sort((a, b) => {
+      const dateA = a.lastUpdate ? new Date(a.lastUpdate).getTime() : 0;
+      const dateB = b.lastUpdate ? new Date(b.lastUpdate).getTime() : 0;
+      return dateB - dateA;
+    });
+
     res.json({ success: true, data: sessions });
-  } catch (error) {
-    console.error("Error fetching sessions:", error);
-    res.status(500).json({ success: false, error: "Error al obtener sesiones" });
+  } catch (error: any) {
+    console.error("Error fetching sessions:", error?.message || error);
+    res.status(500).json({ success: false, error: "Error al obtener sesiones: " + (error?.message || error) });
   }
 });
 
@@ -222,10 +235,11 @@ router.get("/sessions/:threadId", async (req: Request, res: Response) => {
         clientId: data.clientId,
         agentId: data.agentId,
         userId: data.userId,
+        userName: data.userName || null,
         messages: data.messages,
         summary: data.summary,
         classification: data.classification,
-        lastUpdate: data.lastUpdate?.toDate?.() || data.lastUpdate,
+        lastUpdate: data.lastUpdate?.toDate?.() ? data.lastUpdate.toDate().toISOString() : null,
       }
     });
   } catch (error) {
