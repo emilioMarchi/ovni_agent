@@ -35,19 +35,22 @@ export async function saveHistoryNode(state: AgentStateType) {
     const userName = userInfo?.name || null;
     const docId = `conv_${agentId}_${userId}`;
 
-    const serializableMessages = messages.map(msg => {
-      let role = "unknown";
-      if (msg instanceof HumanMessage) role = "user";
-      else if (msg instanceof AIMessage) role = "assistant";
-      else if (msg instanceof ToolMessage) role = "tool";
+    const serializableMessages = messages
+      .filter(msg => {
+        const role = msg instanceof HumanMessage ? 'user' : msg instanceof AIMessage ? 'assistant' : msg instanceof ToolMessage ? 'tool' : 'unknown';
+        return role !== 'tool';
+      })
+      .map(msg => {
+        let role = "unknown";
+        if (msg instanceof HumanMessage) role = "user";
+        else if (msg instanceof AIMessage) role = "assistant";
 
-      return {
-        role,
-        content: cleanMessageContent(msg.content as string, role),
-        timestamp: new Date().toISOString(),
-        metadata: (msg as any).tool_calls || {},
-      };
-    });
+        return {
+          role,
+          content: cleanMessageContent(msg.content as string, role),
+          timestamp: new Date().toISOString(),
+        };
+      });
 
     let summary: string | undefined;
     let classification: any = undefined;

@@ -426,13 +426,33 @@
             if (hint) hint.remove();
             
             for (const msg of data.data) {
+              if (msg.role === 'tool') continue;
               const type = msg.role === 'user' ? 'user' : 'assistant';
-              this.addMessage(msg.content, type);
+              this.addMessage(this.cleanAssistantMessage(msg.content), type);
             }
           }
         } catch (err) {
           console.error('Error loading history:', err);
         }
+      }
+
+      cleanAssistantMessage(content) {
+        if (typeof content !== 'string') return String(content);
+        
+        let cleaned = content;
+        
+        cleaned = cleaned.replace(/\[\{"functionCall":\s*\{[^}]+\}"thoughtSignature":"[^"]+"\}\]/g, '');
+        
+        cleaned = cleaned.replace(/\[\{"functionCall":\s*\{[^}]+\}\}\]/g, '');
+        
+        cleaned = cleaned.replace(/\[TOOL\[Info.*?\]\]/gi, '');
+        
+        cleaned = cleaned.replace(/\}\s*,\s*\{/g, ', ');
+        
+        cleaned = cleaned.trim();
+        
+        if (!cleaned) return '...';
+        return cleaned;
       }
 
       showEmptyHint(name) {
