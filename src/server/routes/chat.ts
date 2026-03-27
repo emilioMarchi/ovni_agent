@@ -184,19 +184,33 @@ router.get("/sessions", async (req: Request, res: Response) => {
         .get();
     }
 
-    const sessions = snapshot.docs.map(doc => {
+    const sessions = await Promise.all(snapshot.docs.map(async doc => {
       const data = doc.data();
+      
+      let userName = data.userName || null;
+      
+      if (!userName && data.userId && data.userId !== 'anonymous') {
+        try {
+          const userDoc = await db.collection("users").doc(`${data.clientId}_${data.userId}`).get();
+          if (userDoc.exists) {
+            userName = userDoc.data()?.name || null;
+          }
+        } catch (e) {
+          console.log('Error fetching user name:', e);
+        }
+      }
+      
       return {
         threadId: data.threadId,
         agentId: data.agentId,
         userId: data.userId,
-        userName: data.userName || null,
+        userName,
         lastUpdate: data.lastUpdate?.toDate?.() ? data.lastUpdate.toDate().toISOString() : null,
         messageCount: data.messages?.length || 0,
         summary: data.summary,
         classification: data.classification,
       };
-    });
+    }));
 
     sessions.sort((a, b) => {
       const dateA = a.lastUpdate ? new Date(a.lastUpdate).getTime() : 0;
