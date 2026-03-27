@@ -6,6 +6,7 @@ Evolución del proyecto `chatbot-redes` hacia una arquitectura de **Agente Autó
 ## 🏗️ Arquitectura Técnica 2.0
 - **Ciclo de Razonamiento**: ReAct (Pensamiento -> Acción -> Observación -> Respuesta).
 - **Persistencia**: `MemorySaver` con `thread_id` para hilos de conversación.
+- **Persistencia de Sesiones**: El widget guarda el `threadId` en localStorage para retomar conversaciones entre visitas.
 - **Seguridad**: Autenticación centralizada y aislamiento por `clientId`.
 
 ## 🛠️ Herramientas Clave
@@ -13,7 +14,8 @@ Evolución del proyecto `chatbot-redes` hacia una arquitectura de **Agente Autó
 - **`product_catalog` / `knowledge_retriever`**: RAG adaptativo por cliente.
 - **Integración Calendar**: Sincronización vía OAuth 2.0 por cliente, con manejo de tokens en Firestore (`admins` collection).
 
-## 🚀 Avances Recientes (23/03/26)
+## 🚀 Avances Recientes (27/03/26)
+- **Persistencia de Sesiones**: El widget ahora usa localStorage para mantener el threadId entre visitas, permitiendo retomar conversaciones sin perder contexto.
 - **Agendado Inteligente**: El agente ahora consulta disponibilidad de forma proactiva al detectar intención de reunión, evitando alucinaciones mediante el uso estricto de herramientas.
 - **Ciclo de Vida de Reunión**: Implementado el proceso de solicitud (pendiente) y confirmación vía email (POST/GET a `/api/meetings/:id/confirm`).
 - **Sincronización Calendar**: Integración con Google Calendar configurada por cliente, almacenando tokens de acceso en la colección `admins`.
