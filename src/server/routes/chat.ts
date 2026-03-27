@@ -138,7 +138,6 @@ router.get("/history/:threadId", async (req: Request, res: Response) => {
   try {
     const { threadId } = req.params;
     
-    // Buscar en colección history por threadId
     const snapshot = await db
       .collection("history")
       .where("threadId", "==", threadId)
@@ -157,6 +156,81 @@ router.get("/history/:threadId", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching history:", error);
     res.status(500).json({ success: false, error: "Error al obtener historial" });
+  }
+});
+
+router.get("/sessions", async (req: Request, res: Response) => {
+  try {
+    const { clientId, agentId, limit = "20" } = req.query;
+    
+    if (!clientId) {
+      return res.status(400).json({ success: false, error: "clientId es requerido" });
+    }
+
+    let query = db.collection("history").where("clientId", "==", clientId as string);
+    
+    if (agentId) {
+      query = query.where("agentId", "==", agentId as string);
+    }
+
+    const snapshot = await query
+      .orderBy("lastUpdate", "desc")
+      .limit(parseInt(limit as string))
+      .get();
+
+    const sessions = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        threadId: data.threadId,
+        agentId: data.agentId,
+        userId: data.userId,
+        lastUpdate: data.lastUpdate?.toDate?.() || data.lastUpdate,
+        messageCount: data.messages?.length || 0,
+        summary: data.summary,
+        classification: data.classification,
+      };
+    });
+
+    res.json({ success: true, data: sessions });
+  } catch (error) {
+    console.error("Error fetching sessions:", error);
+    res.status(500).json({ success: false, error: "Error al obtener sesiones" });
+  }
+});
+
+router.get("/sessions/:threadId", async (req: Request, res: Response) => {
+  try {
+    const { threadId } = req.params;
+    
+    const snapshot = await db
+      .collection("history")
+      .where("threadId", "==", threadId)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(404).json({ success: false, error: "Sesión no encontrada" });
+    }
+
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+
+    res.json({
+      success: true,
+      data: {
+        threadId: data.threadId,
+        clientId: data.clientId,
+        agentId: data.agentId,
+        userId: data.userId,
+        messages: data.messages,
+        summary: data.summary,
+        classification: data.classification,
+        lastUpdate: data.lastUpdate?.toDate?.() || data.lastUpdate,
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching session:", error);
+    res.status(500).json({ success: false, error: "Error al obtener sesión" });
   }
 });
 

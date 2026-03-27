@@ -1,6 +1,7 @@
 import admin from "firebase-admin";
 import { AgentStateType } from "../state/state.js";
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { analyzeSession } from "../services/sessionAnalyzer.js";
 
 /**
  * Nodo de Persistencia (Nivel 2): Guarda el historial de la sesión en Firestore.
@@ -30,12 +31,16 @@ export async function saveHistoryNode(state: AgentStateType) {
       };
     });
 
+    const analysis = await analyzeSession(serializableMessages);
+
     await db.collection("history").doc(docId).set({
       clientId: clientId || "unknown",
       agentId: agentId || "unknown",
       userId,
       threadId: state.threadId,
       messages: serializableMessages,
+      summary: analysis.summary,
+      classification: analysis.classification,
       lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
