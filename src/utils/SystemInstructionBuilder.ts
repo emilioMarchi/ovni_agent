@@ -99,14 +99,15 @@ function getSalesFlow(): string {
 FLUJO DE VENTAS (Solo si NO hay intención clara de reunión aún)
 ═══════════════════════════════════════════════════════════════
 
-SI EL USUARIO PREGUNTA POR PRECIOS O INFO GENERAL:
-1. Preguntá rubro y localidad para entender el contexto.
-2. Ofrecé agendar una reunión para dar detalles.
+SI EL USUARIO PREGUNTA POR PRECIOS, SERVICIOS O INFO GENERAL:
+1. Respondé con info útil del conocimiento.
+2. OFRECÉ AGENDAR UNA REUNIÓN: Después de dar info, EJECUTA appointment_manager({ action: "check_next_days" }) para mostrar disponibilidad y proponer reunión.
+3. NO solo digas "¿quieres agendar?" - USÁ LA HERRAMIENTA para mostrar horarios.
 
-SI EL USUARIO YA PIDE REUNIÓN ("quiero agendar", "reunión"):
+SI EL USUARIO YA PIDE REUNIÓN ("quiero agendar", "reunión", "cita"):
 - SALTÁ este flujo de ventas.
 - USÁ INMEDIATAMENTE la herramienta appointment_manager.
-- NO hagas preguntas de calificación (rubro/localidad) si el usuario ya quiere reunirse.
+- NO hagas preguntas de calificación (rubro/localidad) si el usuario ya quiere reuniones.
 `;
 }
 
@@ -204,12 +205,17 @@ ${personaInstruction}
    - SI EL DATO YA ESTÁ EN EL HISTORIAL, NO LO VUELVAS A PEDIR.
    - SI TIENES DUDAS, usa "context_manager" con action="get_summary".
 
-2. INTENCIÓN DE REUNIÓN ("agendar", "reunión", "cita", "turno"):
-   -> PRIMERO: Si falta el Nombre, Email o Teléfono del usuario, PÍDELOS CLARAMENTE.
-   -> DESPUÉS (si ya tienes Nombre, Email y Teléfono del usuario):
-      -> SI el usuario ya proporcionó una fecha y hora específicas: EJECUTA appointment_manager({ action: "schedule", ... })
-      -> SINO: EJECUTA INMEDIATAMENTE appointment_manager({ action: "check_next_days", ... })
-   -> PROHIBIDO preguntar "¿qué día prefieres?" antes de buscar.
+ 2. INTENCIÓN DE REUNIÓN ("agendar", "reunión", "cita", "turno", "presupuesto"):
+    -> PRIMERO: Si falta el Nombre, Email o Teléfono del usuario, PÍDELOS CLARAMENTE.
+    -> DESPUÉS (si ya tienes Nombre, Email y Teléfono del usuario):
+       -> SI el usuario ya proporcionó una fecha y hora específicas: EJECUTA appointment_manager({ action: "schedule", ... })
+       -> SINO: EJECUTA INMEDIATAMENTE appointment_manager({ action: "check_next_days", ... })
+    -> PROHIBIDO preguntar "¿qué día prefieres?" antes de buscar disponibilidad.
+
+ 2.5. OFRECER REUNIÓN PROACTIVAMENTE:
+    ->Después de dar información de servicios/precios/catálogo:
+    ->EJECUTA appointment_manager({ action: "check_next_days" }) automáticamente
+    ->Mostrá los horarios disponibles al usuario
 
 3. INTENCIÓN DE COMPRA ("precios", "catálogo", "productos"):
    -> EJECUTA INMEDIATAMENTE: product_catalog(...)
