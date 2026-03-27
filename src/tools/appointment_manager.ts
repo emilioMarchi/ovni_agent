@@ -4,6 +4,10 @@ import admin from "firebase-admin";
 import { getAvailableSlots } from "../services/availabilityService.js";
 import { sendMeetingRequestToAdmin, sendRequestReceivedToUser } from "../services/emailService.js";
 import { getSessionData } from "./context_manager.js";
+import { getTodayDateString, formatFriendlyDate } from "../utils/dateUtils.js";
+import { toDate, formatInTimeZone } from 'date-fns-tz';
+
+const TIMEZONE = 'America/Argentina/Buenos_Aires';
 
 /**
  * Herramienta para gestión de citas y disponibilidad.
@@ -12,15 +16,19 @@ export const appointmentManagerTool = new DynamicStructuredTool({
   name: "appointment_manager",
   description: `SISTEMA DE GESTIÓN DE REUNIONES - FLUJO OBLIGATORIO.
 
-  1. ANTES DE HABLAR: Si el usuario quiere una reunión, ejecuta SIEMPRE "check_next_days" para ver disponibilidad. No respondas con texto antes de saber qué hay disponible.
-  2. AL CONFIRMAR: Si el usuario ya eligió horario y dio Nombre/Email/Teléfono, ejecuta "schedule" obligatoriamente.
-  3. FINALIZAR: La acción "schedule" ES LA ÚNICA forma de registrar la cita. Si no ejecutas "schedule", la cita no existe.`,
+  1. OFRECER REUNIÓN: Después de dar información de servicios/precios/catálogo, DEBES ejecutar check_next_days automáticamente para mostrar disponibilidad y ofrecer reunión. NO solo preguntes "¿quieres agendar?" - USÁ LA HERRAMIENTA.
+
+  2. ANTES DE HABLAR: Si el usuario quiere una reunión, ejecuta SIEMPRE "check_next_days" para ver disponibilidad. No respondas con texto antes de saber qué hay disponible.
+
+  3. AL CONFIRMAR: Si el usuario ya eligió horario y dio Nombre/Email/Teléfono, ejecuta "schedule" obligatoriamente.
+
+  4. FINALIZAR: La acción "schedule" ES LA ÚNICA forma de registrar la cita. Si no ejecutas "schedule", la cita no existe.`,
   schema: z.object({
     action: z.enum(["check_availability", "check_next_days", "schedule"]).default("check_next_days"),
     clientId: z.string(),
     threadId: z.string().optional().describe("ID de la sesión actual (necesario para recuperar datos guardados del usuario)."),
-    date: z.string().optional(),
-    time: z.string().optional(),
+    date: z.string().optional().describe("Fecha en formato YYYY-MM-DD"),
+    time: z.string().optional().describe("Hora en formato HH:MM (24h)"),
     userInfo: z.object({
       name: z.string().optional(),
       email: z.string().email().optional(),
@@ -57,15 +65,19 @@ export const appointmentManagerTool = new DynamicStructuredTool({
         if (!date || !time) {
              return "⛔ ERROR: Faltan fecha y hora para agendar.";
         }
+        
+        // Normalizar fecha
+        const cleanDate = date.split('T')[0];
+
         if (!finalUserInfo?.name || !finalUserInfo?.email) {
           return "⛔ ERROR CRÍTICO: Para agendar necesito nombre y email. Si ya los diste, por favor repítelos o asegúrate de que se hayan guardado.";
         }
         
-        const { availableSlots } = await getAvailableSlots(clientId, date);
-        if (!availableSlots.includes(time)) return `⛔ ${time} ya está ocupado.`;
+        const { availableSlots } = await getAvailableSlots(clientId, cleanDate);
+        if (!availableSlots.includes(time)) return `⛔ El horario ${time} ya no está disponible para el ${formatFriendlyDate(cleanDate)}. Por favor elige otro.`;
 
         const meetingRef = await db.collection("meetings").add({
-          clientId, date, time, 
+          clientId, date: cleanDate, time, 
           customerName: finalUserInfo.name, 
           customerEmail: finalUserInfo.email,
           customerPhone: finalUserInfo.phone || "No proporcionado",
@@ -77,55 +89,55 @@ export const appointmentManagerTool = new DynamicStructuredTool({
         try {
             const adminDoc = await db.collection("admins").doc(clientId).get();
             const adminEmail = adminDoc.data()?.email;
-            console.log(`🔍 [DEBUG] Intentando enviar email a: ${adminEmail} para reunión: ${meetingRef.id}`);
             if (adminEmail) {
                 await sendMeetingRequestToAdmin(adminEmail, { 
                     customerName: finalUserInfo.name!,
                     customerEmail: finalUserInfo.email!,
                     customerPhone: finalUserInfo.phone,
-                    date, 
+                    date: cleanDate, 
                     time, 
                     topic: finalTopic, 
                     meetingId: meetingRef.id 
                 });
-                console.log("✅ Email de solicitud enviado al admin.");
-            } else {
-                console.warn(`⚠️ No se encontró email del admin en colección 'admins' para clientId: ${clientId}`);
             }
         } catch(e) {
             console.error("❌ Error enviando email de solicitud al Admin:", e);
         }
 
-        // 2. Notificar al Usuario (Nuevo paso)
+        // 2. Notificar al Usuario
         try {
             await sendRequestReceivedToUser(finalUserInfo.email!, {
                 customerName: finalUserInfo.name!,
-                date,
+                date: cleanDate,
                 time,
                 topic: finalTopic
             });
-            console.log("✅ Email de confirmación de recepción enviado al usuario.");
         } catch(e) {
             console.error("❌ Error enviando email de recepción al usuario:", e);
         }
         
-        return `✅ SOLICITUD CREADA CON ÉXITO. ID: ${meetingRef.id}. Avísale al cliente que está pendiente de confirmación.`;
+        const friendlyDate = formatFriendlyDate(cleanDate);
+        return `✅ SOLICITUD CREADA CON ÉXITO para el ${friendlyDate} a las ${time}hs. ID: ${meetingRef.id}. Avísale al usuario que está pendiente de confirmación por parte del administrador.`;
       }
 
-      if (action === "check_next_days") {
-        const daysAhead = 5;
-        const now = new Date();
+      if (effectiveAction === "check_next_days") {
+        const daysAhead = 7;
+        const todayStr = getTodayDateString();
         const results: string[] = [];
+        
         for (let i = 1; i <= daysAhead; i++) {
-          const targetDate = new Date(now);
-          targetDate.setDate(now.getDate() + i);
-          const isoDate = targetDate.toISOString().split("T")[0];
+          const dateObj = toDate(`${todayStr}T12:00:00`, { timeZone: TIMEZONE });
+          dateObj.setDate(dateObj.getDate() + i);
+          
+          const isoDate = formatInTimeZone(dateObj, TIMEZONE, 'yyyy-MM-dd');
           const { availableSlots, businessHours } = await getAvailableSlots(clientId, isoDate);
+          
           if (businessHours.enabled && availableSlots.length > 0) {
-            results.push(`📅 ${isoDate}: ${availableSlots.join(", ")}`);
+            const formattedDate = formatFriendlyDate(isoDate);
+            results.push(`📅 ${formattedDate}: ${availableSlots.join(", ")}`);
           }
         }
-        return results.length > 0 ? results.join("\n") : "Sin disponibilidad.";
+        return results.length > 0 ? `Horarios disponibles:\n\n${results.join("\n")}` : "Lo siento, no tengo disponibilidad en los próximos días hábiles.";
       }
 
       return "Acción no reconocida.";

@@ -299,8 +299,6 @@
   </div>
 
   <script>
-    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutos de inactividad
-
     class OvniChatWidget {
       constructor(config) {
         this.apiUrl = config.apiUrl || window.location.origin;
@@ -309,8 +307,6 @@
         this.threadId = localStorage.getItem('ovni_thread_' + this.agentId);
         this.isOpen = false;
         this.isLoading = false;
-        this.lastActivity = Date.now();
-        this.inactivityTimer = null;
 
         this.init();
       }
@@ -326,31 +322,18 @@
           if (e.key === 'Enter') this.sendMessage();
         });
 
-        // Detectar actividad del usuario para resetear timer
-        ['click', 'keypress', 'mousemove'].forEach(event => {
-          document.addEventListener(event, () => this.resetInactivityTimer(), { once: true });
-        });
-
         // Detectar cierre de página
         window.addEventListener('beforeunload', () => this.endSession());
-
-        this.resetInactivityTimer();
 
         if (this.agentId) {
           this.loadAgentInfo();
         }
       }
 
-      resetInactivityTimer() {
-        this.lastActivity = Date.now();
-        if (this.inactivityTimer) clearTimeout(this.inactivityTimer);
-        this.inactivityTimer = setTimeout(() => this.endSession(), INACTIVITY_TIMEOUT);
-      }
-
       async endSession() {
         if (!this.threadId || this.isLoading) return;
         
-        console.log('🔚 Finalizando sesión por inactividad o cierre');
+        console.log('🔚 Finalizando sesión por cierre de página');
         
         try {
           await fetch(`${this.apiUrl}/api/chat/invoke`, {
@@ -575,7 +558,6 @@
         }
 
         this.setLoading(false);
-        this.resetInactivityTimer();
         input.focus();
       }
     }
