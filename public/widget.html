@@ -304,10 +304,10 @@
         this.apiUrl = config.apiUrl || window.location.origin;
         this.agentId = config.agentId;
         this.clientId = config.clientId;
+        this.agentName = config.agentName || null; // Permitir nombre directo
         this.threadId = localStorage.getItem('ovni_thread_' + this.agentId);
         this.isOpen = false;
         this.isLoading = false;
-
         this.init();
       }
 
@@ -370,31 +370,54 @@
 
       async loadAgentInfo() {
         try {
-          const res = await fetch(`${this.apiUrl}/api/chat/agents?clientId=${this.clientId}`, {
-            headers: {
-              'x-client-id': this.clientId
-            }
-          });
-          const data = await res.json();
-          
-          if (data.success && data.data.length > 0) {
-            const agent = data.data.find(a => a.id === this.agentId) || data.data[0];
-            const agentName = agent.name || 'Asistente';
-            document.getElementById('agentName').textContent = agentName;
-            
-            // Si hay un mensaje de bienvenida configurado y no hay threadId (nueva sesión), mostrarlo
-            if (agent.welcomeMessage && agent.welcomeMessage.trim() !== '' && !this.threadId) {
-              await this.addSequentialMessages(agent.welcomeMessage);
-            } else if (!this.threadId) {
-              // Si no hay mensaje de bienvenida ni threadId, mostrar invitación
-              this.showEmptyHint(agentName);
-            }
-            // Si hay threadId, se retomará la conversación automáticamente
-            if (this.threadId) {
-              await this.loadHistory();
+          let agentName = this.agentName;
+          let welcomeMessage = '';
+          let agent = null;
+          // Si hay agentId, buscar por /api/agents/:id
+          if (!agentName && this.agentId) {
+            try {
+              const res = await fetch(`${this.apiUrl}/api/agents/${this.agentId}`, {
+                headers: { 'x-client-id': this.clientId }
+              });
+              const data = await res.json();
+              if (data.success && data.data) {
+                agent = data.data;
+                agentName = agent.name || 'Asistente';
+                welcomeMessage = agent.welcomeMessage || '';
+              }
+            } catch (e) {
+              // Si falla, fallback a método anterior
             }
           }
+          // Si no se obtuvo el agente por id, usar método anterior
+          if (!agentName) {
+            const res = await fetch(`${this.apiUrl}/api/chat/agents?clientId=${this.clientId}`, {
+              headers: { 'x-client-id': this.clientId }
+            });
+            const data = await res.json();
+            if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+              agent = data.data.find(a => a.id === this.agentId) || data.data[0];
+              agentName = agent.name || 'Asistente';
+              welcomeMessage = agent.welcomeMessage || '';
+            } else {
+              agentName = 'Asistente';
+            }
+          }
+          document.getElementById('agentName').textContent = agentName;
+          // Si hay un mensaje de bienvenida configurado y no hay threadId (nueva sesión), mostrarlo
+          if (welcomeMessage && welcomeMessage.trim() !== '' && !this.threadId) {
+            await this.addSequentialMessages(welcomeMessage);
+          } else if (!this.threadId) {
+            // Si no hay mensaje de bienvenida ni threadId, mostrar invitación
+            this.showEmptyHint(agentName);
+          }
+          // Si hay threadId, se retomará la conversación automáticamente
+          if (this.threadId) {
+            await this.loadHistory();
+          }
         } catch (err) {
+          document.getElementById('agentName').textContent = this.agentName || 'Asistente';
+          this.showEmptyHint(this.agentName || 'Asistente');
           console.error('Error loading agent info:', err);
         }
       }
@@ -566,9 +589,9 @@
     const urlParams = new URLSearchParams(window.location.search);
     const agentId = urlParams.get('agentId');
     const clientId = urlParams.get('clientId');
-    
+    const agentName = urlParams.get('agentName');
     if (agentId && clientId) {
-      window.ovniChat = new OvniChatWidget({ agentId, clientId });
+      window.ovniChat = new OvniChatWidget({ agentId, clientId, agentName });
     } else {
       // Para pruebas locales o integración manual
       window.OvniChatWidget = OvniChatWidget;
