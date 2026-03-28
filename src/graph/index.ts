@@ -6,20 +6,25 @@ import { ragNode } from "../nodes/rag.js";
 import { modelNode } from "../nodes/model.js";
 import { toolNodeWithLogs } from "../nodes/tools.js";
 import { saveHistoryNode } from "../nodes/save_history.js";
+import { historyRetrieverNode } from "../nodes/history_retriever.js";
 
 /**
  * Orquestador del Agente OVNI v2.
  */
 const workflow = new StateGraph(AgentState)
+
   .addNode("config", configNode)
   .addNode("rag", ragNode)
+  .addNode("history_retriever", historyRetrieverNode)
   .addNode("agent", modelNode)
   .addNode("tools", toolNodeWithLogs)
   .addNode("save_history", saveHistoryNode)
 
+
   .addEdge(START, "config")
   .addEdge("config", "rag")
-  .addEdge("rag", "agent")
+  .addEdge("rag", "history_retriever")
+  .addEdge("history_retriever", "agent")
 
   // 3. Bordes condicionales: Si el modelo genera 'tool_calls', ir al nodo 'tools'.
   // Si no, ir al nodo de persistencia de historial.

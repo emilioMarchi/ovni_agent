@@ -29,7 +29,12 @@ function formatSessionDate(date: Date): string {
   });
 }
 
+function cleanFirestoreData(obj: any) {
+  return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined && v !== null));
+}
+
 export async function saveHistoryNode(state: AgentStateType) {
+
   const { messages, clientId, agentId, userInfo, threadId, endSession } = state;
 
   if (!messages || messages.length === 0) return {};
@@ -38,7 +43,7 @@ export async function saveHistoryNode(state: AgentStateType) {
     const db = admin.firestore();
     const userId = userInfo?.phone || userInfo?.email || "anonymous";
     const userName = userInfo?.name || null;
-    const docId = `conv_${agentId}_${userId}`;
+    const docId = `conv_${agentId}_${userId}_${threadId}`;
 
     const serializableMessages = messages
       .filter(msg => {
@@ -69,23 +74,31 @@ export async function saveHistoryNode(state: AgentStateType) {
       const now = new Date();
       const sessionDate = formatSessionDate(now);
       const analysis = await analyzeSession(userAndAssistantMessages, userName);
-      
       summary = `[${sessionDate}] ${analysis.summary}`;
       classification = analysis.classification;
     }
 
-    await db.collection("history").doc(docId).set({
+    // Debug log para summary/classification
+    console.log('📝 Guardando historial:', { summary, classification });
+
+    // Sobreescribir el array de mensajes completo (LangGraph ya tiene el estado acumulado)
+    const docRef = db.collection("history").doc(docId);
+    const docData: any = {
       clientId: clientId || "unknown",
       agentId: agentId || "unknown",
       userId,
       userName,
       threadId,
       messages: serializableMessages,
-      summary: summary,
-      classification: classification,
       lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-
+    };
+    if (typeof summary === 'string' && summary.trim() !== '') {
+      docData.summary = summary;
+    }
+    if (classification && typeof classification === 'object') {
+      docData.classification = classification;
+    }
+    await docRef.set(docData, { merge: false });
   } catch (error) {
     console.error("❌ Error en saveHistoryNode:", error);
   }

@@ -45,9 +45,10 @@
         }
 
         async endSession() {
-          if (!this.threadId || this.isLoading) return;
+          if (!this.threadId) return;
           try {
-            await fetch(`${this.apiUrl}/api/chat/invoke`, {
+            // Endpoint dedicado que solo marca la sesión como terminada sin invocar el modelo
+            await fetch(`${this.apiUrl}/api/chat/end-session`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -56,12 +57,14 @@
               body: JSON.stringify({
                 agentId: this.agentId,
                 clientId: this.clientId,
-                message: '[SESIÓN FINALIZADA]',
                 threadId: this.threadId,
-                endSession: true,
               }),
+              keepalive: true,
             });
           } catch (e) {}
+          // Limpiar threadId del localStorage al finalizar la sesión
+          localStorage.removeItem('ovni_thread_' + this.agentId);
+          this.threadId = null;
         }
 
         toggle() {
@@ -113,7 +116,7 @@
               this.showEmptyHint(agentName);
             }
             if (this.threadId) {
-              await this.loadHistory();
+              // Historial ahora se recupera solo desde el backend/grafo, no desde el widget
             }
           } catch (err) {
             document.getElementById('agentName').textContent = this.agentName || 'Asistente';
@@ -123,7 +126,9 @@
 
         async loadHistory() {
           try {
-            const res = await fetch(`${this.apiUrl}/api/chat/history/${this.threadId}`);
+            const res = await fetch(`${this.apiUrl}/api/chat/history/${this.threadId}`, {
+              headers: { 'x-client-id': this.clientId }
+            });
             const data = await res.json();
             if (data.success && data.data && data.data.length > 0) {
               const hint = document.getElementById('emptyChatHint');

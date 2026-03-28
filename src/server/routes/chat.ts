@@ -38,9 +38,12 @@ router.post("/invoke", async (req: Request, res: Response) => {
       }
     }
 
+    // Generar un único threadId para que config y state usen el mismo valor
+    const resolvedThreadId = threadId || crypto.randomUUID();
+
     const config = {
       configurable: {
-        thread_id: threadId || crypto.randomUUID(),
+        thread_id: resolvedThreadId,
         agentId,
         clientId: clientId || "unknown",
       },
@@ -50,7 +53,7 @@ router.post("/invoke", async (req: Request, res: Response) => {
       messages: [{ role: "user", content: message }],
       agentId,
       clientId: clientId || "unknown",
-      threadId: threadId || crypto.randomUUID(),
+      threadId: resolvedThreadId,
       endSession: endSession || false,
     };
 
@@ -133,6 +136,37 @@ router.post("/stream", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error streaming from agent:", error);
     res.status(500).json({ success: false, error: "Error al hacer stream del agente" });
+  }
+});
+
+// Endpoint para marcar la sesión como terminada sin invocar el modelo
+router.post("/end-session", async (req: Request, res: Response) => {
+  try {
+    const { agentId, clientId: bodyClientId, threadId } = req.body;
+    if (!agentId || !threadId) {
+      return res.status(400).json({ success: false, error: "agentId y threadId son requeridos" });
+    }
+    const clientId = bodyClientId || "";
+
+    // Buscar el documento de historial de esta sesión y marcarla como terminada
+    const snapshot = await db
+      .collection("history")
+      .where("threadId", "==", threadId)
+      .where("agentId", "==", agentId)
+      .limit(1)
+      .get();
+
+    if (!snapshot.empty) {
+      await snapshot.docs[0].ref.update({
+        endedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error en end-session:", error);
+    res.status(500).json({ success: false, error: "Error al finalizar sesión" });
   }
 });
 
