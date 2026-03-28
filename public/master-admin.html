@@ -1875,19 +1875,14 @@
     checkAuth();
     lucide.createIcons();
   </script>
-  <!-- Widget de Chat Rediseñado -->
-  <iframe src="/widget.html?agentId=agent_f2c43c56-2944-4f37-b7d5-b59427b47f09&clientId=org_2d8f74a1-b9c5-4e2a-bb6d-f492a8e310d5" 
-          style="position: fixed; bottom: 0; right: 0; width: 400px; height: 600px; border: none; z-index: 999999; pointer-events: none;"
-          id="ovni-widget-iframe"></iframe>
+  <!-- Widget de Chat Rediseñado (Universal Loader) -->
+  <script src="/ovni-loader.js"></script>
   <script>
-    // Permitir clics solo cuando el ratón está sobre el botón o la ventana del widget
-    // El widget.html tiene su propio sistema de toggle, aquí solo nos aseguramos
-    // de que el iframe no bloquee clics en el resto del admin si no es necesario.
-    // Nota: Dado que el widget tiene un botón fijo, el iframe debe permitir eventos.
-    // Para simplificar, ajustamos el tamaño del iframe dinámicamente o lo dejamos fijo.
-    const iframe = document.getElementById('ovni-widget-iframe');
-    // Como el widget.html ya maneja su posición, solo necesitamos que el iframe sea lo suficientemente grande.
-    iframe.style.pointerEvents = 'all'; 
+    OvniWidget.init({
+      agentId: 'agent_f2c43c56-2944-4f37-b7d5-b59427b47f09',
+      clientId: 'org_2d8f74a1-b9c5-4e2a-bb6d-f492a8e310d5',
+      apiUrl: window.location.origin
+    });
   </script>
 </body>
 </html>
