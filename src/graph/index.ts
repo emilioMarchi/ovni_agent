@@ -2,7 +2,6 @@ import { StateGraph, START, END, MemorySaver } from "@langchain/langgraph";
 import { toolsCondition } from "@langchain/langgraph/prebuilt";
 import { AgentState } from "../state/state.js";
 import { configNode } from "../nodes/config.js";
-import { ragNode } from "../nodes/rag.js";
 import { modelNode } from "../nodes/model.js";
 import { toolNodeWithLogs } from "../nodes/tools.js";
 import { saveHistoryNode } from "../nodes/save_history.js";
@@ -16,7 +15,6 @@ import { textToSpeechNode } from "../nodes/textToSpeech.js";
 const workflow = new StateGraph(AgentState)
 
   .addNode("config", configNode)
-  .addNode("rag", ragNode)
   .addNode("history_retriever", historyRetrieverNode)
   .addNode("speech_to_text", speechToTextNode)
   .addNode("agent", modelNode)
@@ -25,8 +23,7 @@ const workflow = new StateGraph(AgentState)
   .addNode("save_history", saveHistoryNode)
 
   .addEdge(START, "config")
-  .addEdge("config", "rag")
-  .addEdge("rag", "history_retriever")
+  .addEdge("config", "history_retriever")
   .addEdge("history_retriever", "speech_to_text")
   .addEdge("speech_to_text", "agent")
 

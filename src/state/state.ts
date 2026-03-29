@@ -142,6 +142,14 @@ export const AgentState = Annotation.Root({
     reducer: (old, newest) => newest ?? old,
     default: () => "",
   }),
+
+  /**
+   * Permite saltear procesos previos costosos para inputs simples sin intención clara.
+   */
+  fastPath: Annotation<boolean>({
+    reducer: (old, newest) => newest ?? old,
+    default: () => false,
+  }),
 });
 
 /**

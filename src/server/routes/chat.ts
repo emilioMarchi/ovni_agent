@@ -6,6 +6,52 @@ import { speechToText } from "../../services/speechToTextService.js";
 const router = Router();
 const db = admin.firestore();
 
+const AGENT_CLIENT_CACHE_TTL_MS = 5 * 60 * 1000;
+const agentClientCache = new Map<string, { clientId: string; expiresAt: number }>();
+
+const SIMPLE_INPUT_REGEX = /^(hola+|hola hola|hola como|hola cómo|buenas|buen día|buen dia|buenos dias|buenos días|buenas tardes|buenas noches|gracias|muchas gracias|ok|oka+y?|dale|genial|perfecto|sí|si|no|aja|ajá|mm+|mmm+|hello|hi|ey|hey|que tal|qué tal)$/i;
+
+function isSimpleInputWithoutIntent(text?: string): boolean {
+  if (!text) return false;
+
+  const normalized = text
+    .toLowerCase()
+    .replace(/[¿?¡!.,;:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) return false;
+  if (SIMPLE_INPUT_REGEX.test(normalized)) return true;
+  if (normalized.length <= 12 && !/(precio|plan|servicio|producto|agendar|agenda|reunion|reunión|turno|presupuesto|comprar|contratar|ayuda|soporte|error|problema)/i.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
+async function resolveClientId(agentId: string, providedClientId?: string): Promise<string> {
+  if (providedClientId) {
+    return providedClientId;
+  }
+
+  const cached = agentClientCache.get(agentId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.clientId;
+  }
+
+  const agentDoc = await db.collection("agents").doc(agentId).get();
+  const clientId = agentDoc.exists ? (agentDoc.data()?.clientId || "") : "";
+
+  if (clientId) {
+    agentClientCache.set(agentId, {
+      clientId,
+      expiresAt: Date.now() + AGENT_CLIENT_CACHE_TTL_MS,
+    });
+  }
+
+  return clientId;
+}
+
 interface ChatRequest {
   agentId: string;
   message?: string;
@@ -30,13 +76,10 @@ router.post("/invoke", async (req: Request, res: Response) => {
     }
 
     let clientId = bodyClientId || "";
-    
+
     if (!clientId && agentId) {
       try {
-        const agentDoc = await db.collection("agents").doc(agentId).get();
-        if (agentDoc.exists) {
-          clientId = agentDoc.data()?.clientId || "";
-        }
+        clientId = await resolveClientId(agentId, bodyClientId);
       } catch (e) {
         console.error("Error getting agent clientId:", e);
       }
@@ -60,6 +103,10 @@ router.post("/invoke", async (req: Request, res: Response) => {
       threadId: resolvedThreadId,
       endSession: endSession || false,
       outputAudio: !!(audio || outputAudio),
+      ragContext: "",
+      contextHistory: [],
+      contextQuery: message || "",
+      fastPath: isSimpleInputWithoutIntent(message),
     };
 
     if (audio) {
@@ -82,6 +129,8 @@ router.post("/invoke", async (req: Request, res: Response) => {
       }
       inputState.messages = [{ role: "user", content: transcript }];
       inputState.audioBuffer = null; // Limpiar para no restaurar del checkpoint
+      inputState.contextQuery = transcript;
+      inputState.fastPath = isSimpleInputWithoutIntent(transcript);
     }
 
     console.log(`📨 Invocando agente ${agentId} para cliente ${clientId}${endSession ? ' (FIN DE SESIÓN)' : ''}`);
@@ -118,13 +167,10 @@ router.post("/stream", async (req: Request, res: Response) => {
     }
 
     let clientId = bodyClientId || "";
-    
+
     if (!clientId && agentId) {
       try {
-        const agentDoc = await db.collection("agents").doc(agentId).get();
-        if (agentDoc.exists) {
-          clientId = agentDoc.data()?.clientId || "";
-        }
+        clientId = await resolveClientId(agentId, bodyClientId);
       } catch (e) {
         console.error("Error getting agent clientId:", e);
       }
@@ -143,6 +189,10 @@ router.post("/stream", async (req: Request, res: Response) => {
       agentId,
       clientId: clientId || "unknown",
       threadId: threadId || crypto.randomUUID(),
+      ragContext: "",
+      contextHistory: [],
+      contextQuery: message,
+      fastPath: isSimpleInputWithoutIntent(message),
     };
 
     res.setHeader("Content-Type", "text/event-stream");

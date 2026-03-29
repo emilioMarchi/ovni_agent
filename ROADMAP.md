@@ -17,6 +17,7 @@ Este documento detalla el progreso y la planificación del Agente OVNI v2 (Matri
 
 ## ✅ Fase 8: UX, Agendado y Branding - COMPLETADO
 - [x] Flujo proactivo de recolección de datos para citas.
+- [x] Preconfirmación obligatoria de datos antes de crear solicitudes de reunión.
 - [x] Sincronización de tokens de Google Calendar por Admin.
 - [x] Notificaciones por Email (Resend) con diseño Dark Mode.
 - [x] Favicons, logos y consistencia visual de marca.
@@ -39,6 +40,15 @@ Este documento detalla el progreso y la planificación del Agente OVNI v2 (Matri
 
 ---
 
+## ✅ Fase 10.5: Optimización Conversacional y Audio - COMPLETADO
+- [x] **RAG Bajo Demanda**: Eliminado el prefetch automático; el modelo decide cuándo consultar `knowledge_retriever`.
+- [x] **Fast Path**: Inputs simples mantienen contexto mínimo y evitan procesos previos costosos.
+- [x] **Fallback Cruzado**: `product_catalog` y `knowledge_retriever` se complementan antes de responder que no hay información.
+- [x] **TTS Consistente**: Voz estabilizada, horarios hablados en formato natural y respuestas verbales resumidas.
+- [x] **Widget Dual Audio/Texto**: Respuestas de audio del agente pueden desplegar su texto con un botón `Ver texto`.
+
+---
+
 ## 🚀 Fase 11: Tool Intelligence (Tool RAG)
 - [ ] **Tool RAG**: Indexar descripciones de herramientas en Pinecone (`tool_catalog`).
 - [ ] **Detector de Intención**: Nodo previo al modelo que selecciona dinámicamente las 3-5 herramientas más relevantes.
@@ -53,6 +63,4 @@ Este documento detalla el progreso y la planificación del Agente OVNI v2 (Matri
 - [ ] **Builder de Workflows**: Configurar flujos de estados por agente desde Firestore.
 - [ ] **Templates**: Plantillas preconfiguradas por industria.
 - [ ] **Analytics**: Panel de uso de tokens y efectividad de respuestas.
-- [ ] **Builder de Workflows**: Configurar flujos de estados por agente desde Firestore.
 - [ ] **Templates**: Plantillas preconfiguradas por industria (Inmobiliaria, Salud, Ecommerce).
-- [ ] **Analytics**: Panel de uso de tokens y efectividad de respuestas.

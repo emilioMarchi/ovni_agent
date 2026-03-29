@@ -5,6 +5,42 @@ import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TaskType } from "@google/generative-ai";
 import admin from "firebase-admin";
 
+function normalizeSearchText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function searchDocumentsFallback(query: string, clientId: string, allowedDocIds: string[] = []) {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) {
+    return "";
+  }
+
+  const index = pinecone.index("chatbot-knowledge");
+  const namespace = `client_${clientId}`;
+  const queryVector = await embeddings.embedQuery(normalizedQuery);
+
+  const queryOptions: Record<string, unknown> = {
+    vector: queryVector,
+    topK: 4,
+    includeMetadata: true,
+  };
+
+  if (allowedDocIds.length > 0) {
+    queryOptions.filter = { docId: { "$in": allowedDocIds } };
+  }
+
+  const searchResult = await index.namespace(namespace).query(queryOptions);
+  const matches = (searchResult.matches || []).filter((match) => (match.score || 0) >= 0.25);
+
+  if (matches.length === 0) {
+    return "";
+  }
+
+  return matches
+    .map((match) => `[DOC: ${match.metadata?.filename}] [SECCIÓN: ${match.metadata?.description}]:\n${match.metadata?.text}`)
+    .join("\n\n---\n\n");
+}
+
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY!,
 });
@@ -21,28 +57,28 @@ const embeddings = new GoogleGenerativeAIEmbeddings({
  */
 export const productCatalogTool = new DynamicStructuredTool({
   name: "product_catalog",
-  description: "Busca productos, precios y disponibilidad en el catálogo del cliente.",
+  description: "Busca productos estructurados del catálogo del cliente, como items concretos, SKU, precio o categoría. Si no encuentra coincidencias claras, debe revisar si la información está en documentos del negocio antes de responder que no hay resultados.",
   schema: z.object({
-    query: z.string().describe("Nombre o descripción del producto buscado."),
-    clientId: z.string().describe("ID del cliente para filtrar por su catálogo."),
-    allowedCategories: z.array(z.string()).optional().describe("Categorías permitidas para restringir la búsqueda."),
-    listAll: z.boolean().optional().describe("Indica si debe listar todos los productos destacados sin filtrar por búsqueda semántica."),
+    query: z.preprocess(normalizeSearchText, z.string().default("")).describe("Nombre o descripción del producto buscado."),
+    clientId: z.preprocess(normalizeSearchText, z.string()).describe("ID del cliente para filtrar por su catálogo."),
+    allowedCategories: z.array(z.string()).optional().default([]).describe("Categorías permitidas para restringir la búsqueda."),
+    allowedDocIds: z.array(z.string()).optional().default([]).describe("IDs de documentos autorizados para fallback documental."),
+    listAll: z.coerce.boolean().optional().default(false).describe("Indica si debe listar todos los productos destacados sin filtrar por búsqueda semántica."),
   }),
-  func: async ({ query, clientId, allowedCategories = [], listAll = false }) => {
+  func: async ({ query, clientId, allowedCategories = [], allowedDocIds = [], listAll = false }) => {
     try {
       const db = admin.firestore();
-      const index = pinecone.index("chatbot-knowledge");
-      const namespace = `products_${clientId}`;
       let results: any[] = [];
+      const normalizedQuery = normalizeSearchText(query);
 
-      if (listAll || !query.trim()) {
+      if (listAll || !normalizedQuery) {
         const snapshot = await db.collection("products")
           .where("clientId", "==", clientId)
           .limit(10)
           .get();
         results = snapshot.docs.map(doc => ({ id: doc.id, score: 1, ...doc.data() }));
       } else {
-        const queryLower = query.toLowerCase();
+        const queryLower = normalizedQuery.toLowerCase();
         const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
         
         let snapshot = await db.collection("products")
@@ -61,11 +97,6 @@ export const productCatalogTool = new DynamicStructuredTool({
             score: p.nombre?.toLowerCase().includes(queryWords[0]) ? 0.9 : 0.5 
           }));
 
-        if (results.length === 0) {
-          snapshot = await db.collection("products").limit(10).get();
-          results = snapshot.docs
-            .map(doc => ({ id: doc.id, score: 0.3, ...doc.data() }));
-        }
       }
 
       // 3. Filtrado por categorías permitidas
@@ -74,7 +105,13 @@ export const productCatalogTool = new DynamicStructuredTool({
       }
 
       // 4. Formatear salida
-      if (results.length === 0) return "No se encontraron productos que coincidan con tu búsqueda.";
+      if (results.length === 0) {
+        const fallback = await searchDocumentsFallback(normalizedQuery, clientId, allowedDocIds);
+        if (fallback) {
+          return `No encontré coincidencias claras en el catálogo estructurado. Pero sí encontré esta información en documentos del negocio:\n\n${fallback}`;
+        }
+        return "No se encontraron productos que coincidan con tu búsqueda ni información relacionada en los documentos del negocio.";
+      }
 
       return results
         .sort((a, b) => (b.score || 0) - (a.score || 0))

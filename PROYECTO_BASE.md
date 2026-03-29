@@ -8,19 +8,24 @@ Evolución del proyecto `chatbot-redes` hacia una arquitectura de **Agente Autó
 - **Persistencia**: `MemorySaver` con `thread_id` para hilos de conversación.
 - **Persistencia de Sesiones**: El widget guarda el `threadId` en localStorage para retomar conversaciones entre visitas.
 - **Seguridad**: Autenticación centralizada y aislamiento por `clientId`.
+- **RAG Bajo Demanda**: El sistema ya no hace prefetch automático de conocimiento; el modelo decide cuándo consultar documentos usando `knowledge_retriever`.
+- **Fast Path Conversacional**: Inputs simples conservan contexto mínimo reciente, pero saltean procesos caros innecesarios.
 
 ## 🛠️ Herramientas Clave
-- **`appointment_manager`**: Gestión proactiva de agenda. Implementa flujo automático (consulta de horarios -> recolección de datos -> reserva en Firestore -> notificación).
-- **`product_catalog` / `knowledge_retriever`**: RAG adaptativo por cliente.
+- **`appointment_manager`**: Gestión proactiva de agenda con preconfirmación obligatoria antes de crear la solicitud.
+- **`product_catalog` / `knowledge_retriever`**: Recuperación híbrida con fallback cruzado entre catálogo estructurado y documentos del negocio.
 - **Integración Calendar**: Sincronización vía OAuth 2.0 por cliente, con manejo de tokens en Firestore (`admins` collection).
 
-## 🚀 Avances Recientes (27/03/26)
+## 🚀 Avances Recientes (29/03/26)
 - **Historial de Sesiones con IA**: Cada conversación se analiza con Gemini para generar:
   - Resumen automático de la conversación
   - Clasificación: tipo (lead/conversation/support), nivel de interés, intenciones, temas, sentimiento
 - **Endpoints de Sesiones**: `GET /api/chat/sessions` y `GET /api/chat/sessions/:threadId`
 - **Persistencia de Sesiones**: El widget usa localStorage para mantener el threadId entre visitas.
-- **Agendado Inteligente**: El agente ahora consulta disponibilidad de forma proactiva al detectar intención de reunión.
+- **Agendado Inteligente**: El agente consulta disponibilidad de forma proactiva y ahora resume fecha, hora y datos de contacto antes de solicitar la reunión.
+- **Optimización de Latencia**: Cache de metadata/configuración del agente, eliminación del RAG automático y fast-path para mensajes simples.
+- **Modo Audio Mejorado**: Voz más consistente, horarios normalizados para habla natural, respuestas verbales resumidas y widget con botón para ver el texto de una respuesta de audio.
+- **Recuperación Híbrida**: Si la información no aparece en productos, el sistema revisa documentos; si no aparece en documentos y la consulta parece de catálogo, revisa productos.
 
 ## 📋 Road Map de Administración (Panel Admin v2)
 El siguiente paso evolutivo es descentralizar la configuración:
@@ -42,4 +47,4 @@ Mejoras arquitectónicas pendientes para soportar alta demanda:
 - [ ] **Seguridad Chat**: Implementar tokens temporales o firma de peticiones para el widget de chat, evitando uso no autorizado de la API.
 
 ---
-*Última actualización: 24 de marzo de 2026*
+*Última actualización: 29 de marzo de 2026*

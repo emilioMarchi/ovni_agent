@@ -7,9 +7,24 @@ import { getOlderMessages, semanticSearchHistory } from "../utils/contextLayersU
  * Recupera los últimos N mensajes relevantes y los agrega al contexto.
  */
 export async function historyRetrieverNode(state: AgentStateType) {
-  const { threadId, agentId, userInfo, contextQuery } = state;
+  const { threadId, agentId, userInfo, contextQuery, fastPath } = state;
   if (!threadId || !agentId) return {};
-  let contextHistory = await getRecentMessages(threadId, agentId, 15);
+
+  const inMemoryConversation = state.messages.filter((message) => {
+    const role = typeof (message as any)?._getType === "function" ? (message as any)._getType() : "";
+    return role === "human" || role === "ai";
+  });
+
+  if (inMemoryConversation.length >= 6) {
+    return {};
+  }
+
+  const recentLimit = fastPath ? 4 : 15;
+  let contextHistory = await getRecentMessages(threadId, agentId, recentLimit);
+
+  if (fastPath) {
+    return { contextHistory };
+  }
 
   // Si Gemini/modelo requiere más contexto (simulación: menos de 5 mensajes)
   if (contextHistory.length < 5) {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TaskType } from "@google/generative-ai";
+import admin from "firebase-admin";
 
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY!,
@@ -13,6 +14,42 @@ const embeddings = new GoogleGenerativeAIEmbeddings({
   taskType: TaskType.RETRIEVAL_QUERY,
   apiKey: process.env.GEMINI_API_KEY,
 });
+
+function seemsProductQuery(query: string): boolean {
+  return /(producto|productos|cat[aá]logo|precio|precios|plan|planes|destacado|destacados|sku|disponible|stock|presupuesto)/i.test(query);
+}
+
+async function searchProductsFallback(query: string, clientId: string) {
+  const db = admin.firestore();
+  const queryLower = query.toLowerCase();
+  const queryWords = queryLower.split(/\s+/).filter((word) => word.length > 2);
+
+  const snapshot = await db.collection("products")
+    .where("clientId", "==", clientId)
+    .limit(20)
+    .get();
+
+  const matches = snapshot.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((product: any) => {
+      const searchText = `${product.nombre || ""} ${product.descripcion || ""} ${product.categoria || ""}`.toLowerCase();
+      return queryWords.some((word) => searchText.includes(word));
+    })
+    .slice(0, 5);
+
+  if (matches.length === 0) {
+    return "";
+  }
+
+  return matches
+    .map((product: any) => {
+      let display = `- ${product.nombre}`;
+      if (product.precio && product.precio > 0) display += `: $${product.precio}`;
+      if (product.categoria) display += ` (${product.categoria})`;
+      return display;
+    })
+    .join("\n");
+}
 
 /**
  * Herramienta para búsqueda semántica en la base de conocimientos del cliente.
@@ -59,7 +96,11 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
         });
         
         if (!broaderSearch.matches || broaderSearch.matches.length === 0) {
-          return "No se encontró información relevante en los documentos autorizados.";
+          const productFallback = seemsProductQuery(query) ? await searchProductsFallback(query, clientId) : "";
+          if (productFallback) {
+            return `No encontré información clara en documentos, pero sí encontré esto en el catálogo estructurado:\n\n${productFallback}`;
+          }
+          return "No se encontró información relevante ni en los documentos autorizados ni en el catálogo estructurado.";
         }
         
         return broaderSearch.matches
@@ -77,7 +118,11 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       });
 
       if (!searchResult.matches || searchResult.matches.length === 0) {
-        return "No se encontraron fragmentos específicos que respondan a la consulta.";
+        const productFallback = seemsProductQuery(query) ? await searchProductsFallback(query, clientId) : "";
+        if (productFallback) {
+          return `No encontré fragmentos documentales específicos, pero sí encontré esto en el catálogo estructurado:\n\n${productFallback}`;
+        }
+        return "No se encontraron fragmentos específicos que respondan a la consulta, ni coincidencias útiles en el catálogo estructurado.";
       }
 
       return searchResult.matches

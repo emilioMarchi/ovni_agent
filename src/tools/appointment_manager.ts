@@ -20,9 +20,11 @@ export const appointmentManagerTool = new DynamicStructuredTool({
 
   2. ANTES DE HABLAR: Si el usuario quiere una reunión, ejecuta SIEMPRE "check_next_days" para ver disponibilidad. No respondas con texto antes de saber qué hay disponible.
 
-  3. AL CONFIRMAR: Si el usuario ya eligió horario y dio Nombre/Email/Teléfono, ejecuta "schedule" obligatoriamente.
+  3. PRECONFIRMACIÓN OBLIGATORIA: Si el usuario ya eligió horario y dio Nombre/Email/Teléfono, PRIMERO debes mostrar un resumen con fecha, hora, nombre, email, teléfono y motivo, y pedir confirmación explícita o correcciones.
 
-  4. FINALIZAR: La acción "schedule" ES LA ÚNICA forma de registrar la cita. Si no ejecutas "schedule", la cita no existe.`,
+  4. AL CONFIRMAR: Solo cuando el usuario confirme explícitamente que esos datos son correctos, ejecuta "schedule" con confirmedByUser=true.
+
+  5. FINALIZAR: La acción "schedule" ES LA ÚNICA forma de registrar la cita. Si no ejecutas "schedule", la cita no existe.`,
   schema: z.object({
     action: z.enum(["check_availability", "check_next_days", "schedule"]).default("check_next_days"),
     clientId: z.string(),
@@ -35,6 +37,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
       phone: z.string().optional(),
     }).optional(),
     topic: z.string().optional(),
+    confirmedByUser: z.boolean().optional().describe("Solo true si el usuario ya confirmó explícitamente que los datos de la reunión son correctos."),
   }),
   func: async (args) => {
     try {
@@ -42,7 +45,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
       if (!args || typeof args !== 'object') {
         return '⛔ ERROR: Argumentos inválidos para appointment_manager.';
       }
-      const { action = "check_next_days", clientId, threadId, date, time, userInfo, topic } = args;
+      const { action = "check_next_days", clientId, threadId, date, time, userInfo, topic, confirmedByUser } = args;
       if (!clientId || typeof clientId !== 'string' || clientId.trim() === '') {
         return '⛔ ERROR: clientId es requerido para appointment_manager.';
       }
@@ -70,6 +73,21 @@ export const appointmentManagerTool = new DynamicStructuredTool({
         const cleanDate = date.split('T')[0];
         if (!finalUserInfo?.name || !finalUserInfo?.email) {
           return "⛔ ERROR CRÍTICO: Para agendar necesito nombre y email. Si ya los diste, por favor repítelos o asegúrate de que se hayan guardado.";
+        }
+        if (!confirmedByUser) {
+          const friendlyDate = formatFriendlyDate(cleanDate);
+          const confirmationTopic = finalTopic || "Consulta General";
+          return [
+            "⚠️ ANTES DE CREAR LA SOLICITUD debes pedir confirmación explícita al usuario.",
+            "Compartile este resumen y preguntale si está correcto o si quiere corregir algo:",
+            `- Fecha: ${friendlyDate}`,
+            `- Hora: ${time}`,
+            `- Nombre: ${finalUserInfo.name}`,
+            `- Email: ${finalUserInfo.email}`,
+            `- Teléfono: ${finalUserInfo.phone || "No proporcionado"}`,
+            `- Motivo: ${confirmationTopic}`,
+            "Si el usuario confirma que todo está correcto, vuelve a ejecutar appointment_manager con action=\"schedule\" y confirmedByUser=true.",
+          ].join("\n");
         }
         const { availableSlots } = await getAvailableSlots(clientId, cleanDate);
         if (!availableSlots.includes(time)) return `⛔ El horario ${time} ya no está disponible para el ${formatFriendlyDate(cleanDate)}. Por favor elige otro.`;
