@@ -1349,7 +1349,8 @@
     };
 
     window.copyAgentWidget = async function(agentId, clientId) {
-      const snippet = `<script src="${window.location.origin}/ovni-loader.js"><\/script>\n<script>\n  OvniWidget.init({\n    agentId: '${agentId}',\n    clientId: '${clientId}',\n    apiUrl: '${window.location.origin}'\n  });\n<\/script>`;
+      const widgetServerUrl = 'http://64.23.138.249:8080';
+      const snippet = `<script src="${widgetServerUrl}/ovni-loader.js"><\/script>\n<script>\n  OvniWidget.init({\n    agentId: '${agentId}',\n    clientId: '${clientId}',\n    apiUrl: '${widgetServerUrl}'\n  });\n<\/script>`;
 
       try {
         await navigator.clipboard.writeText(snippet);
@@ -2208,7 +2209,7 @@
       window.OvniWidget.init({
         agentId: 'agent_a5de54451f36487aa43a9642',
         clientId: 'org_2d8f74a1-b9c5-4e2a-bb6d-f492a8e310d5',
-        apiUrl: 'http://localhost:8080'
+        apiUrl: 'http://64.23.138.249:8080'
       });
     });
   </script>
