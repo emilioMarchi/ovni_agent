@@ -1,5 +1,5 @@
 import { AgentStateType } from "../state/state.js";
-import { availabilityCheckerTool, appointmentManagerTool, productCatalogTool, knowledgeRetrieverTool } from "../tools/index.js";
+import { productCatalogTool, knowledgeRetrieverTool } from "../tools/index.js";
 
 const TOOL_BY_KEYWORD: Record<string, { tool: any; action?: string; field?: string }> = {
   // Eliminamos 'agendar', 'reunion', 'cita' para dejar que el modelo decida usar appointment_manager

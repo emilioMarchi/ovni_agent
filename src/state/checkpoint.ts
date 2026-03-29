@@ -1,5 +1,7 @@
 import admin from "firebase-admin";
 import { BaseCheckpointSaver, Checkpoint, CheckpointMetadata, CheckpointTuple } from "@langchain/langgraph-checkpoint";
+import type { RunnableConfig } from "@langchain/core/runnables";
+import type { PendingWrite } from "@langchain/langgraph-checkpoint";
 
 /**
  * Checkpointer personalizado para Firestore.
@@ -15,8 +17,16 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
     this.db = admin.firestore();
   }
 
-  async getTuple(config: any): Promise<CheckpointTuple | undefined> {
-    const { thread_id } = config.configurable;
+  private getThreadId(config: RunnableConfig): string {
+    const threadId = config.configurable?.thread_id;
+    if (typeof threadId !== "string" || !threadId) {
+      throw new Error("Missing thread_id in checkpoint config");
+    }
+    return threadId;
+  }
+
+  async getTuple(config: RunnableConfig): Promise<CheckpointTuple | undefined> {
+    const thread_id = this.getThreadId(config);
     const doc = await this.db.collection(this.collectionName).doc(thread_id).get();
 
     if (!doc.exists) return undefined;
@@ -29,25 +39,29 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
     };
   }
 
-  async list(config: any): Promise<CheckpointTuple[]> {
-    // Implementación básica para listar checkpoints de un hilo
-    const { thread_id } = config.configurable;
+  async *list(config: RunnableConfig): AsyncGenerator<CheckpointTuple> {
+    const thread_id = this.getThreadId(config);
     const snapshot = await this.db.collection(this.collectionName)
       .where("thread_id", "==", thread_id)
       .get();
 
-    return snapshot.docs.map(doc => {
+    for (const doc of snapshot.docs) {
       const data = doc.data();
-      return {
+      yield {
         config: { configurable: { thread_id: data.thread_id } },
         checkpoint: JSON.parse(data.checkpoint),
         metadata: JSON.parse(data.metadata || "{}"),
       };
-    });
+    }
   }
 
-  async put(config: any, checkpoint: Checkpoint, metadata: CheckpointMetadata): Promise<any> {
-    const { thread_id } = config.configurable;
+  async put(
+    config: RunnableConfig,
+    checkpoint: Checkpoint,
+    metadata: CheckpointMetadata,
+    _newVersions: Record<string, string | number>
+  ): Promise<RunnableConfig> {
+    const thread_id = this.getThreadId(config);
     
     await this.db.collection(this.collectionName).doc(thread_id).set({
       thread_id,
@@ -57,5 +71,9 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
     });
 
     return { configurable: { thread_id } };
+  }
+
+  async putWrites(_config: RunnableConfig, _writes: PendingWrite[], _taskId: string): Promise<void> {
+    return;
   }
 }

@@ -37,7 +37,7 @@ export const userProfileManagerTool = new DynamicStructuredTool({
       if (action === "create" || action === "update") {
         if (!data) return "Se requieren datos para realizar esta acción.";
         
-        const payload = {
+        const payload: Record<string, unknown> = {
           ...data,
           clientId,
           userId,

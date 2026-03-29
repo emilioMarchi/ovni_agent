@@ -1,10 +1,18 @@
 import admin from "firebase-admin";
 import { google } from "googleapis";
 
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
+  getRequiredEnv("GOOGLE_CLIENT_ID"),
+  getRequiredEnv("GOOGLE_CLIENT_SECRET"),
+  getRequiredEnv("GOOGLE_REDIRECT_URI")
 );
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar"];
