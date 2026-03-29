@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { randomUUID } from "node:crypto";
 import { graph } from "../../graph/index.js";
 import admin from "../firebase.js";
 import { speechToText } from "../../services/speechToTextService.js";
@@ -102,7 +103,7 @@ router.post("/invoke", widgetWriteRateLimit, widgetAccessGuard, async (req: Requ
     }
 
     // Generar un único threadId para que config y state usen el mismo valor
-    const resolvedThreadId = threadId || crypto.randomUUID();
+    const resolvedThreadId = threadId || randomUUID();
 
     const config = {
       configurable: {
@@ -194,7 +195,7 @@ router.post("/stream", widgetWriteRateLimit, widgetAccessGuard, async (req: Requ
 
     const config = {
       configurable: {
-        thread_id: threadId || crypto.randomUUID(),
+        thread_id: threadId || randomUUID(),
         agentId,
         clientId: clientId || "unknown",
       },
@@ -204,7 +205,7 @@ router.post("/stream", widgetWriteRateLimit, widgetAccessGuard, async (req: Requ
       messages: [{ role: "user", content: message }],
       agentId,
       clientId: clientId || "unknown",
-      threadId: threadId || crypto.randomUUID(),
+      threadId: threadId || randomUUID(),
       ragContext: "",
       contextHistory: [],
       contextQuery: message,
