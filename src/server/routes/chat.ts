@@ -2,12 +2,22 @@ import { Router, Request, Response } from "express";
 import { graph } from "../../graph/index.js";
 import admin from "../firebase.js";
 import { speechToText } from "../../services/speechToTextService.js";
+import { createRateLimitMiddleware, isWidgetTokenProtectionEnabled, issueWidgetToken, resolveClientId, widgetAccessGuard } from "../middleware/widgetSecurity.js";
 
 const router = Router();
 const db = admin.firestore();
 
-const AGENT_CLIENT_CACHE_TTL_MS = 5 * 60 * 1000;
-const agentClientCache = new Map<string, { clientId: string; expiresAt: number }>();
+const widgetReadRateLimit = createRateLimitMiddleware({
+  windowMs: Number(process.env.WIDGET_RATE_LIMIT_READ_WINDOW_MS || 60_000),
+  max: Number(process.env.WIDGET_RATE_LIMIT_READ_MAX || 120),
+  keyPrefix: "widget-read",
+});
+
+const widgetWriteRateLimit = createRateLimitMiddleware({
+  windowMs: Number(process.env.WIDGET_RATE_LIMIT_WRITE_WINDOW_MS || 60_000),
+  max: Number(process.env.WIDGET_RATE_LIMIT_WRITE_MAX || 30),
+  keyPrefix: "widget-write",
+});
 
 const SIMPLE_INPUT_REGEX = /^(hola+|hola hola|hola como|hola cómo|buenas|buen día|buen dia|buenos dias|buenos días|buenas tardes|buenas noches|gracias|muchas gracias|ok|oka+y?|dale|genial|perfecto|sí|si|no|aja|ajá|mm+|mmm+|hello|hi|ey|hey|que tal|qué tal)$/i;
 
@@ -29,29 +39,6 @@ function isSimpleInputWithoutIntent(text?: string): boolean {
   return false;
 }
 
-async function resolveClientId(agentId: string, providedClientId?: string): Promise<string> {
-  if (providedClientId) {
-    return providedClientId;
-  }
-
-  const cached = agentClientCache.get(agentId);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.clientId;
-  }
-
-  const agentDoc = await db.collection("agents").doc(agentId).get();
-  const clientId = agentDoc.exists ? (agentDoc.data()?.clientId || "") : "";
-
-  if (clientId) {
-    agentClientCache.set(agentId, {
-      clientId,
-      expiresAt: Date.now() + AGENT_CLIENT_CACHE_TTL_MS,
-    });
-  }
-
-  return clientId;
-}
-
 interface ChatRequest {
   agentId: string;
   message?: string;
@@ -62,9 +49,38 @@ interface ChatRequest {
   clientId?: string;
   metadata?: Record<string, unknown>;
   endSession?: boolean;
+  widgetToken?: string;
 }
 
-router.post("/invoke", async (req: Request, res: Response) => {
+router.post("/widget-token", widgetReadRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
+  try {
+    const { agentId, clientId: bodyClientId } = req.body as ChatRequest;
+    const clientId = (res.locals.resolvedClientId as string) || bodyClientId || "";
+    const originHost = (res.locals.originHost as string) || "";
+
+    if (!agentId || !clientId) {
+      return res.status(400).json({ success: false, error: "agentId y clientId son requeridos para emitir el token del widget" });
+    }
+
+    const issuedToken = originHost
+      ? issueWidgetToken({ agentId, clientId, originHost })
+      : null;
+
+    res.json({
+      success: true,
+      data: {
+        token: issuedToken?.token || null,
+        expiresAt: issuedToken?.expiresAt || null,
+        required: isWidgetTokenProtectionEnabled(),
+      },
+    });
+  } catch (error) {
+    console.error("Error issuing widget token:", error);
+    res.status(500).json({ success: false, error: "Error al emitir token del widget" });
+  }
+});
+
+router.post("/invoke", widgetWriteRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
   try {
     const { agentId, message, audio, audioMimeType, outputAudio, threadId, clientId: bodyClientId, endSession } = req.body as ChatRequest;
 
@@ -75,7 +91,7 @@ router.post("/invoke", async (req: Request, res: Response) => {
       });
     }
 
-    let clientId = bodyClientId || "";
+    let clientId = (res.locals.resolvedClientId as string) || bodyClientId || "";
 
     if (!clientId && agentId) {
       try {
@@ -155,7 +171,7 @@ router.post("/invoke", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/stream", async (req: Request, res: Response) => {
+router.post("/stream", widgetWriteRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
   try {
     const { agentId, message, threadId, clientId: bodyClientId } = req.body as ChatRequest;
 
@@ -166,7 +182,7 @@ router.post("/stream", async (req: Request, res: Response) => {
       });
     }
 
-    let clientId = bodyClientId || "";
+    let clientId = (res.locals.resolvedClientId as string) || bodyClientId || "";
 
     if (!clientId && agentId) {
       try {
@@ -220,13 +236,13 @@ router.post("/stream", async (req: Request, res: Response) => {
 });
 
 // Endpoint para marcar la sesión como terminada sin invocar el modelo
-router.post("/end-session", async (req: Request, res: Response) => {
+router.post("/end-session", widgetWriteRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
   try {
     const { agentId, clientId: bodyClientId, threadId } = req.body;
     if (!agentId || !threadId) {
       return res.status(400).json({ success: false, error: "agentId y threadId son requeridos" });
     }
-    const clientId = bodyClientId || "";
+    const clientId = (res.locals.resolvedClientId as string) || bodyClientId || "";
 
     // Buscar el documento de historial de esta sesión y marcarla como terminada
     const snapshot = await db
@@ -250,7 +266,7 @@ router.post("/end-session", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/history/:threadId", async (req: Request, res: Response) => {
+router.get("/history/:threadId", widgetReadRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
   try {
     const { threadId } = req.params;
     
@@ -378,9 +394,9 @@ router.get("/sessions/:threadId", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/agents", async (req: Request, res: Response) => {
+router.get("/agents", widgetReadRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
   try {
-    const { clientId } = req.query;
+    const clientId = (res.locals.resolvedClientId as string) || (req.query.clientId as string | undefined);
     
     if (!clientId) {
       return res.status(400).json({ success: false, error: "clientId es requerido" });

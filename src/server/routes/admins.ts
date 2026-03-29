@@ -3,6 +3,7 @@ import admin from "../firebase.js";
 import { v4 as uuidv4 } from "uuid";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { masterAuth, AuthenticatedRequest } from "../middleware/auth.js";
+import { invalidateAllowedDomainsCache, normalizeAllowedDomains } from "../middleware/widgetSecurity.js";
 
 const router = Router();
 const db = admin.firestore();
@@ -38,7 +39,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const { name, email, businessName, businessContext } = req.body;
+    const { name, email, businessName, businessContext, allowedDomains } = req.body;
     
     if (!name || !email) {
       return res.status(400).json({ success: false, error: "name y email son requeridos" });
@@ -52,6 +53,7 @@ router.post("/", async (req: Request, res: Response) => {
       email,
       businessName: businessName || "",
       businessContext: businessContext || "",
+      allowedDomains: normalizeAllowedDomains(allowedDomains),
       createdAt: now,
       updatedAt: now,
     };
@@ -67,7 +69,7 @@ router.post("/", async (req: Request, res: Response) => {
 
 router.put("/:id", async (req: Request, res: Response) => {
   try {
-    const { name, email, businessName, businessContext } = req.body;
+    const { name, email, businessName, businessContext, allowedDomains } = req.body;
     const updates: Record<string, unknown> = {
       updatedAt: new Date().toISOString(),
     };
@@ -76,8 +78,10 @@ router.put("/:id", async (req: Request, res: Response) => {
     if (email) updates.email = email;
     if (businessName !== undefined) updates.businessName = businessName;
     if (businessContext !== undefined) updates.businessContext = businessContext;
+    if (allowedDomains !== undefined) updates.allowedDomains = normalizeAllowedDomains(allowedDomains);
 
     await db.collection("admins").doc(req.params.id).update(updates);
+    invalidateAllowedDomainsCache(req.params.id);
 
     const doc = await db.collection("admins").doc(req.params.id).get();
     res.json({ success: true, data: { id: doc.id, ...doc.data() } });

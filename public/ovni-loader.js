@@ -23,6 +23,9 @@
           this.agentId = config.agentId;
           this.clientId = config.clientId;
           this.agentName = config.agentName || null;
+          this.widgetToken = config.widgetToken || null;
+          this.widgetTokenExpiresAt = 0;
+          this.widgetTokenRequired = false;
           this.threadId = localStorage.getItem('ovni_thread_' + this.agentId);
           this.isOpen = false;
           this.isLoading = false;
@@ -53,16 +56,56 @@
           }
         }
 
-        async endSession() {
-          if (!this.threadId) return;
+        getRequestHeaders(includeJson) {
+          var headers = {};
+          if (includeJson !== false) headers['Content-Type'] = 'application/json';
+          headers['x-client-id'] = this.clientId;
+          if (this.widgetToken) headers['x-ovni-widget-token'] = this.widgetToken;
+          return headers;
+        }
+
+        async ensureWidgetToken(forceRefresh) {
+          if (!this.agentId || !this.clientId) return null;
+          if (!forceRefresh && this.widgetToken && this.widgetTokenExpiresAt > Date.now() + 15000) {
+            return this.widgetToken;
+          }
           try {
-            // Endpoint dedicado que solo marca la sesión como terminada sin invocar el modelo
-            await fetch(`${this.apiUrl}/api/chat/end-session`, {
+            const res = await fetch(`${this.apiUrl}/api/chat/widget-token`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'x-client-id': this.clientId
               },
+              body: JSON.stringify({
+                agentId: this.agentId,
+                clientId: this.clientId
+              })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se pudo emitir el token del widget');
+            this.widgetTokenRequired = !!(data.data && data.data.required);
+            this.widgetToken = data.data && data.data.token ? data.data.token : null;
+            this.widgetTokenExpiresAt = data.data && data.data.expiresAt ? data.data.expiresAt : 0;
+            if (this.widgetTokenRequired && !this.widgetToken) {
+              throw new Error('El backend requiere token del widget pero no pudo emitirlo');
+            }
+          } catch (err) {
+            if (this.widgetTokenRequired) throw err;
+            this.widgetToken = null;
+            this.widgetTokenExpiresAt = 0;
+            console.warn('No se pudo obtener token del widget, continuo sin token.', err);
+          }
+          return this.widgetToken;
+        }
+
+        async endSession() {
+          if (!this.threadId) return;
+          try {
+            await this.ensureWidgetToken();
+            // Endpoint dedicado que solo marca la sesión como terminada sin invocar el modelo
+            await fetch(`${this.apiUrl}/api/chat/end-session`, {
+              method: 'POST',
+              headers: this.getRequestHeaders(true),
               body: JSON.stringify({
                 agentId: this.agentId,
                 clientId: this.clientId,
@@ -106,8 +149,9 @@
               } catch (e) {}
             }
             if (!agentName) {
+              await this.ensureWidgetToken();
               const res = await fetch(`${this.apiUrl}/api/chat/agents?clientId=${this.clientId}`, {
-                headers: { 'x-client-id': this.clientId }
+                headers: this.getRequestHeaders(false)
               });
               const data = await res.json();
               if (data.success && Array.isArray(data.data) && data.data.length > 0) {
@@ -135,8 +179,9 @@
 
         async loadHistory() {
           try {
+            await this.ensureWidgetToken();
             const res = await fetch(`${this.apiUrl}/api/chat/history/${this.threadId}`, {
-              headers: { 'x-client-id': this.clientId }
+              headers: this.getRequestHeaders(false)
             });
             const data = await res.json();
             if (data.success && data.data && data.data.length > 0) {
@@ -244,12 +289,10 @@
           this.showTyping();
           this.setLoading(true);
           try {
+            await this.ensureWidgetToken();
             const res = await fetch(`${this.apiUrl}/api/chat/invoke`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-client-id': this.clientId
-              },
+              headers: this.getRequestHeaders(true),
               body: JSON.stringify({
                 agentId: this.agentId,
                 clientId: this.clientId,
@@ -345,12 +388,10 @@
           this.showTyping();
           this.setLoading(true);
           try {
+            await this.ensureWidgetToken();
             const res = await fetch(`${this.apiUrl}/api/chat/invoke`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-client-id': this.clientId
-              },
+              headers: this.getRequestHeaders(true),
               body: JSON.stringify({
                 agentId: this.agentId,
                 clientId: this.clientId,

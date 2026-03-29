@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 8080;
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-client-id"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-client-id", "x-ovni-widget-token"],
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static("public"));

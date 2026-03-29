@@ -382,7 +382,7 @@
     }
 
     .agent-name { font-size: 14px; font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
-    .agent-desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .agent-desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; display: -webkit-box; line-clamp: 2; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
     .agent-meta {
       display: flex;
@@ -846,6 +846,11 @@
             <label class="form-label">Contexto de Negocio</label>
             <textarea name="businessContext" class="form-textarea" placeholder="Describe brevemente el negocio..." rows="3"></textarea>
           </div>
+          <div class="form-group">
+            <label class="form-label">Dominios Permitidos del Widget</label>
+            <textarea name="allowedDomains" class="form-textarea" placeholder="midominio.com&#10;www.midominio.com&#10;*.subdominio.com" rows="3"></textarea>
+            <div class="form-help">Uno por línea o separados por coma. Si queda vacío, no se restringe por dominio.</div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeModal('modal-admin')">Cancelar</button>
@@ -880,6 +885,11 @@
           <div class="form-group">
             <label class="form-label">Contexto de Negocio</label>
             <textarea name="businessContext" id="edit-admin-businessContext" class="form-textarea" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dominios Permitidos del Widget</label>
+            <textarea name="allowedDomains" id="edit-admin-allowedDomains" class="form-textarea" rows="3" placeholder="midominio.com&#10;www.midominio.com&#10;*.subdominio.com"></textarea>
+            <div class="form-help">Uno por línea o separados por coma. Si queda vacío, no se restringe por dominio.</div>
           </div>
         </div>
         <div class="modal-footer">
@@ -1470,6 +1480,7 @@
           <div class="client-email">${a.email || 'Sin email'}</div>
           <div class="client-meta">
             <span>Creado: ${new Date(a.createdAt).toLocaleDateString('es-AR')}</span>
+            <span>${(a.allowedDomains || []).length} dominios widget</span>
           </div>
           <div class="client-actions">
             <button class="client-btn" onclick="showTab('agents'); selectAdmin('${a.id}','${a.name}')" title="Ver Agentes">
@@ -1497,6 +1508,7 @@
         document.getElementById('edit-admin-email').value = a.email || '';
         document.getElementById('edit-admin-businessName').value = a.businessName || '';
         document.getElementById('edit-admin-businessContext').value = a.businessContext || '';
+        document.getElementById('edit-admin-allowedDomains').value = (a.allowedDomains || []).join('\n');
         openModal('modal-admin-edit');
       } catch (e) {
         showToast(e.message, 'error');
@@ -1515,6 +1527,13 @@
       }
     };
 
+    function parseAllowedDomainsInput(value) {
+      return String(value || '')
+        .split(/[\n,;]/)
+        .map(part => part.trim())
+        .filter(Boolean);
+    }
+
     document.getElementById('form-admin').onsubmit = async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
@@ -1522,7 +1541,8 @@
         name: formData.get('name'),
         email: formData.get('email'),
         businessName: formData.get('businessName'),
-        businessContext: formData.get('businessContext')
+        businessContext: formData.get('businessContext'),
+        allowedDomains: parseAllowedDomainsInput(formData.get('allowedDomains'))
       };
       try {
         await apiFetch('/api/admins', { method: 'POST', body: JSON.stringify(data) });
@@ -1543,7 +1563,8 @@
         name: formData.get('name'),
         email: formData.get('email'),
         businessName: formData.get('businessName'),
-        businessContext: formData.get('businessContext')
+        businessContext: formData.get('businessContext'),
+        allowedDomains: parseAllowedDomainsInput(formData.get('allowedDomains'))
       };
       try {
         await apiFetch(`/api/admins/${adminId}`, { method: 'PUT', body: JSON.stringify(data) });
