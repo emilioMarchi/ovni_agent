@@ -1,4 +1,5 @@
 import admin from "firebase-admin";
+import { formatInTimeZone, toDate } from "date-fns-tz";
 const DEFAULT_BUSINESS_HOURS = {
     lunes: { enabled: true, ranges: [{ start: "10:00", end: "14:00" }, { start: "16:00", end: "19:00" }] },
     martes: { enabled: true, ranges: [{ start: "10:00", end: "14:00" }, { start: "16:00", end: "19:00" }] },
@@ -8,11 +9,24 @@ const DEFAULT_BUSINESS_HOURS = {
     sabado: { enabled: false, ranges: [] },
     domingo: { enabled: false, ranges: [] },
 };
+const TIMEZONE = "America/Argentina/Buenos_Aires";
 function normalizeDayName(day) {
     return day
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "");
+}
+function parseDateInTimezone(date) {
+    return toDate(`${date}T12:00:00`, { timeZone: TIMEZONE });
+}
+function getDayNameForDate(date) {
+    const dateObj = parseDateInTimezone(date);
+    const dayName = formatInTimeZone(dateObj, TIMEZONE, "EEEE");
+    return normalizeDayName(dayName);
+}
+function formatDateForDisplay(date) {
+    const dateObj = parseDateInTimezone(date);
+    return formatInTimeZone(dateObj, TIMEZONE, "EEEE d 'de' MMMM 'de' yyyy");
 }
 function generateTimeSlots(start, end) {
     const slots = [];
@@ -30,13 +44,11 @@ function generateTimeSlots(start, end) {
 }
 export async function getAvailableSlots(clientId, date) {
     const db = admin.firestore();
-    const dateObj = new Date(date);
-    const dayName = dateObj.toLocaleDateString("es-AR", { weekday: "long", timeZone: "America/Argentina/Buenos_Aires" });
-    const normalizedDay = normalizeDayName(dayName);
+    const normalizedDay = getDayNameForDate(date);
     let businessHours = DEFAULT_BUSINESS_HOURS[normalizedDay] || { enabled: false, ranges: [] };
     try {
-        const configDoc = await db.collection("config").doc(clientId).get();
-        const clientBusinessHours = configDoc.data()?.businessHours;
+        const adminDoc = await db.collection("admins").doc(clientId).get();
+        const clientBusinessHours = adminDoc.data()?.businessHours;
         if (clientBusinessHours && clientBusinessHours[normalizedDay]) {
             businessHours = clientBusinessHours[normalizedDay];
         }
@@ -62,7 +74,12 @@ export async function getAvailableSlots(clientId, date) {
         .where("date", "==", date)
         .get();
     const bookedSlots = meetingsSnapshot.docs
-        .map((doc) => doc.data().time)
+        .map((doc) => doc.data())
+        .filter((meeting) => {
+        const status = String(meeting.status || "").toLowerCase();
+        return status !== "cancelled" && status !== "canceled" && status !== "rejected";
+    })
+        .map((meeting) => meeting.time)
         .filter(Boolean);
     const availableSlots = allSlots.filter((slot) => !bookedSlots.includes(slot));
     const availableRanges = businessHours.ranges.map((range) => `${range.start} - ${range.end}`);
@@ -75,14 +92,7 @@ export async function getAvailableSlots(clientId, date) {
 }
 export async function formatAvailabilityMessage(clientId, date) {
     const { availableSlots, availableRanges, bookedSlots, businessHours } = await getAvailableSlots(clientId, date);
-    const dateObj = new Date(date);
-    const formattedDate = dateObj.toLocaleDateString("es-AR", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        timeZone: "America/Argentina/Buenos_Aires",
-    });
+    const formattedDate = formatDateForDisplay(date);
     if (!businessHours.enabled) {
         return `No atendemos el ${formattedDate}. Nuestros horarios son de lunes a viernes de 10:00 a 14:00 y de 16:00 a 19:00.`;
     }

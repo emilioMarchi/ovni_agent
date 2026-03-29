@@ -4,12 +4,12 @@ const TIMEZONE = 'America/Argentina/Buenos_Aires';
 
 const DAY_NAMES: Record<string, string> = {
   'Sunday': 'domingo',
-  'Monday': 'martes',
-  'Tuesday': 'miércoles',
-  'Wednesday': 'jueves',
-  'Thursday': 'viernes',
-  'Friday': 'sábado',
-  'Saturday': 'domingo',
+  'Monday': 'lunes',
+  'Tuesday': 'martes',
+  'Wednesday': 'miercoles',
+  'Thursday': 'jueves',
+  'Friday': 'viernes',
+  'Saturday': 'sabado',
 };
 
 /**
@@ -32,7 +32,18 @@ export function getDayName(dateString: string): string {
  * Normaliza el nombre del día (minúsculas, sin acentos).
  */
 export function normalizeDayName(day: string): string {
-  return DAY_NAMES[day] || day.toLowerCase();
+  return (DAY_NAMES[day] || day.toLowerCase())
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * Suma días calendario a una fecha YYYY-MM-DD respetando la zona horaria de Argentina.
+ */
+export function addDaysToDateString(dateString: string, days: number): string {
+  const date = toDate(`${dateString}T12:00:00`, { timeZone: TIMEZONE });
+  date.setDate(date.getDate() + days);
+  return formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd');
 }
 
 /**

@@ -14,12 +14,12 @@ export declare const appointmentManagerTool: DynamicStructuredTool<z.ZodObject<{
         email: z.ZodOptional<z.ZodString>;
         phone: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     }, {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     }>>;
     topic: z.ZodOptional<z.ZodString>;
@@ -28,8 +28,8 @@ export declare const appointmentManagerTool: DynamicStructuredTool<z.ZodObject<{
     clientId: string;
     action: "check_availability" | "check_next_days" | "schedule";
     userInfo?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     threadId?: string | undefined;
@@ -40,8 +40,8 @@ export declare const appointmentManagerTool: DynamicStructuredTool<z.ZodObject<{
 }, {
     clientId: string;
     userInfo?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     threadId?: string | undefined;
@@ -54,8 +54,8 @@ export declare const appointmentManagerTool: DynamicStructuredTool<z.ZodObject<{
     clientId: string;
     action: "check_availability" | "check_next_days" | "schedule";
     userInfo?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     threadId?: string | undefined;
@@ -66,8 +66,8 @@ export declare const appointmentManagerTool: DynamicStructuredTool<z.ZodObject<{
 }, {
     clientId: string;
     userInfo?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     threadId?: string | undefined;

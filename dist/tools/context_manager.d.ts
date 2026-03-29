@@ -21,12 +21,12 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
         email: z.ZodOptional<z.ZodString>;
         phone: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     }, {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     }>>;
     businessData: z.ZodOptional<z.ZodObject<{
@@ -47,8 +47,8 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
     threadId: string;
     action: "get" | "save_user" | "save_business" | "get_summary";
     userData?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -61,8 +61,8 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
     threadId: string;
     action: "get" | "save_user" | "save_business" | "get_summary";
     userData?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -75,8 +75,8 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
     threadId: string;
     action: "get" | "save_user" | "save_business" | "get_summary";
     userData?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -89,8 +89,8 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
     threadId: string;
     action: "get" | "save_user" | "save_business" | "get_summary";
     userData?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {

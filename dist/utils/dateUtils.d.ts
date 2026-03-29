@@ -11,6 +11,10 @@ export declare function getDayName(dateString: string): string;
  */
 export declare function normalizeDayName(day: string): string;
 /**
+ * Suma días calendario a una fecha YYYY-MM-DD respetando la zona horaria de Argentina.
+ */
+export declare function addDaysToDateString(dateString: string, days: number): string;
+/**
  * Formatea una fecha ISO para mostrarla al usuario: "Martes 31 de marzo".
  */
 export declare function formatFriendlyDate(dateString: string): string;

@@ -114,7 +114,7 @@ FLUJO DE HISTORIAL
 }
 export class SystemInstructionBuilder {
     static build(state) {
-        const { systemInstruction, businessContext, clientId, agentId, allowedDocIds, functions, skills, ragContext, threadId } = state;
+        const { systemInstruction, businessContext, clientId, agentId, agentName, agentDescription, organizationName, allowedDocIds, functions, skills, ragContext, threadId } = state;
         const skillList = skills || [];
         const functionList = functions || [];
         const enabledSkills = skillList.map(s => SKILL_LABELS[s] || s).filter(Boolean);
@@ -124,6 +124,19 @@ export class SystemInstructionBuilder {
             ? `CAPACIDADES DISPONIBLES:
 ${enabledSkills.length > 0 ? `- Habilidades: ${enabledSkills.join(", ")}` : ""}
 ${enabledFunctions.length > 0 ? `- Funciones: ${enabledFunctions.join(", ")}` : ""}`
+            : "";
+        const identitySection = (agentName || agentDescription)
+            ? `IDENTIDAD DEL AGENTE:
+    ${agentName ? `- Nombre del agente: ${agentName}` : ""}
+    ${agentDescription ? `- Descripción del agente: ${agentDescription}` : ""}
+
+    Usá esta identidad como referencia estable. Si el usuario pregunta cómo te llamás o quién sos, respondé usando este nombre y esta descripción, sin inventar otra identidad.`
+            : "";
+        const organizationSection = organizationName
+            ? `NEGOCIO / ORGANIZACIÓN:
+        - Nombre del negocio: ${organizationName}
+
+        Representás a este negocio. Si el usuario pregunta de qué empresa o estudio sos parte, respondé usando este nombre.`
             : "";
         const knowledgeSection = ragContext
             ? `INFORMACIÓN DEL NEGOCIO:
@@ -154,6 +167,10 @@ TU OBJETIVO PRINCIPAL ES EJECUTAR ACCIONES (TOOLS) PARA AYUDAR AL USUARIO.
 DATOS DE SISTEMA:
 - Client ID: ${clientId}
 - Agent ID: ${agentId}
+
+${identitySection}
+
+${organizationSection}
 
 ${capabilitiesSection}
 

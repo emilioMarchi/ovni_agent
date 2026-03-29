@@ -70,14 +70,14 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
         metadata: import("zod").ZodOptional<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodAny>>;
     }, "strip", import("zod").ZodTypeAny, {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     }, {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     }>>;
@@ -87,8 +87,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     userId: string;
     data?: {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     } | undefined;
@@ -98,8 +98,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     userId: string;
     data?: {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     } | undefined;
@@ -109,8 +109,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     userId: string;
     data?: {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     } | undefined;
@@ -120,8 +120,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     userId: string;
     data?: {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     } | undefined;
@@ -158,12 +158,12 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
         email: import("zod").ZodOptional<import("zod").ZodString>;
         phone: import("zod").ZodOptional<import("zod").ZodString>;
     }, "strip", import("zod").ZodTypeAny, {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     }, {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     }>>;
     businessData: import("zod").ZodOptional<import("zod").ZodObject<{
@@ -184,8 +184,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     threadId: string;
     action: "get" | "save_user" | "save_business" | "get_summary";
     userData?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -198,8 +198,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     threadId: string;
     action: "get" | "save_user" | "save_business" | "get_summary";
     userData?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -212,8 +212,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     threadId: string;
     action: "get" | "save_user" | "save_business" | "get_summary";
     userData?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -226,8 +226,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     threadId: string;
     action: "get" | "save_user" | "save_business" | "get_summary";
     userData?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -247,12 +247,12 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
         email: import("zod").ZodOptional<import("zod").ZodString>;
         phone: import("zod").ZodOptional<import("zod").ZodString>;
     }, "strip", import("zod").ZodTypeAny, {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     }, {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     }>>;
     topic: import("zod").ZodOptional<import("zod").ZodString>;
@@ -261,8 +261,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     clientId: string;
     action: "check_availability" | "check_next_days" | "schedule";
     userInfo?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     threadId?: string | undefined;
@@ -273,8 +273,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
 }, {
     clientId: string;
     userInfo?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     threadId?: string | undefined;
@@ -287,8 +287,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     clientId: string;
     action: "check_availability" | "check_next_days" | "schedule";
     userInfo?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     threadId?: string | undefined;
@@ -299,8 +299,8 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
 }, {
     clientId: string;
     userInfo?: {
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     threadId?: string | undefined;

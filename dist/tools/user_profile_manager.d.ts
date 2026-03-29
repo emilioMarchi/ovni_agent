@@ -16,14 +16,14 @@ export declare const userProfileManagerTool: DynamicStructuredTool<z.ZodObject<{
         metadata: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodAny>>;
     }, "strip", z.ZodTypeAny, {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     }, {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     }>>;
@@ -33,8 +33,8 @@ export declare const userProfileManagerTool: DynamicStructuredTool<z.ZodObject<{
     userId: string;
     data?: {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     } | undefined;
@@ -44,8 +44,8 @@ export declare const userProfileManagerTool: DynamicStructuredTool<z.ZodObject<{
     userId: string;
     data?: {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     } | undefined;
@@ -55,8 +55,8 @@ export declare const userProfileManagerTool: DynamicStructuredTool<z.ZodObject<{
     userId: string;
     data?: {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     } | undefined;
@@ -66,8 +66,8 @@ export declare const userProfileManagerTool: DynamicStructuredTool<z.ZodObject<{
     userId: string;
     data?: {
         flowState?: string | undefined;
-        email?: string | undefined;
         name?: string | undefined;
+        email?: string | undefined;
         phone?: string | undefined;
         metadata?: Record<string, any> | undefined;
     } | undefined;

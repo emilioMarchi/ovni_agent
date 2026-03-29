@@ -1,6 +1,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { getAvailableSlots, formatAvailabilityMessage } from "../services/availabilityService.js";
+import { addDaysToDateString, formatFriendlyDate, getTodayDateString } from "../utils/dateUtils.js";
 export const availabilityCheckerTool = new DynamicStructuredTool({
     name: "availability_checker",
     description: `Úsala cuando el usuario pregunte explícitamente qué horarios están disponibles para agendar o cuando ya aceptó ver disponibilidad.
@@ -16,20 +17,13 @@ No la uses para ofrecer horarios de forma automática si el usuario todavía no 
     func: async ({ action, clientId, daysAhead = 5, date }) => {
         try {
             if (action === "check_next_days") {
-                const now = new Date();
+                const today = getTodayDateString();
                 const results = [];
                 for (let i = 1; i <= daysAhead; i++) {
-                    const targetDate = new Date(now);
-                    targetDate.setDate(now.getDate() + i);
-                    const isoDate = targetDate.toISOString().split("T")[0];
+                    const isoDate = addDaysToDateString(today, i);
                     const { availableSlots, businessHours } = await getAvailableSlots(clientId, isoDate);
                     if (businessHours.enabled && availableSlots.length > 0) {
-                        const formattedDate = targetDate.toLocaleDateString("es-AR", {
-                            weekday: "long",
-                            day: "numeric",
-                            month: "long",
-                            timeZone: "America/Argentina/Buenos_Aires",
-                        });
+                        const formattedDate = formatFriendlyDate(isoDate);
                         results.push(`📅 ${formattedDate}: ${availableSlots.join(", ")}`);
                     }
                 }

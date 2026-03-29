@@ -4,6 +4,9 @@
 export declare const graph: import("@langchain/langgraph").CompiledStateGraph<import("@langchain/langgraph").StateType<{
     clientId: import("@langchain/langgraph").LastValue<string>;
     agentId: import("@langchain/langgraph").LastValue<string>;
+    agentName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    agentDescription: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    organizationName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     userInfo: import("@langchain/langgraph").BinaryOperatorAggregate<import("../state/state.js").UserInfo, import("../state/state.js").UserInfo>;
     businessContext: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     systemInstruction: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
@@ -31,6 +34,9 @@ export declare const graph: import("@langchain/langgraph").CompiledStateGraph<im
 }>, import("@langchain/langgraph").UpdateType<{
     clientId: import("@langchain/langgraph").LastValue<string>;
     agentId: import("@langchain/langgraph").LastValue<string>;
+    agentName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    agentDescription: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    organizationName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     userInfo: import("@langchain/langgraph").BinaryOperatorAggregate<import("../state/state.js").UserInfo, import("../state/state.js").UserInfo>;
     businessContext: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     systemInstruction: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
@@ -55,9 +61,12 @@ export declare const graph: import("@langchain/langgraph").CompiledStateGraph<im
     contextQuery: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     fastPath: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
     messages: import("@langchain/langgraph").BinaryOperatorAggregate<import("@langchain/core/messages").BaseMessage[], import("@langchain/langgraph").Messages>;
-}>, "config" | "history_retriever" | "__start__" | "speech_to_text" | "agent" | "tools" | "text_to_speech" | "save_history", {
+}>, "history_retriever" | "__start__" | "config" | "speech_to_text" | "agent" | "tools" | "text_to_speech" | "save_history", {
     clientId: import("@langchain/langgraph").LastValue<string>;
     agentId: import("@langchain/langgraph").LastValue<string>;
+    agentName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    agentDescription: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    organizationName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     userInfo: import("@langchain/langgraph").BinaryOperatorAggregate<import("../state/state.js").UserInfo, import("../state/state.js").UserInfo>;
     businessContext: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     systemInstruction: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
@@ -85,6 +94,9 @@ export declare const graph: import("@langchain/langgraph").CompiledStateGraph<im
 }, {
     clientId: import("@langchain/langgraph").LastValue<string>;
     agentId: import("@langchain/langgraph").LastValue<string>;
+    agentName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    agentDescription: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    organizationName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     userInfo: import("@langchain/langgraph").BinaryOperatorAggregate<import("../state/state.js").UserInfo, import("../state/state.js").UserInfo>;
     businessContext: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     systemInstruction: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;

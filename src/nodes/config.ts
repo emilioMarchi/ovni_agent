@@ -46,9 +46,23 @@ export async function configNode(state: AgentStateType, _: any, config?: Runnabl
     }
 
     const agentData = agentDoc.data()!;
+    const resolvedClientId = agentData.clientId || clientId || "";
+    const adminDoc = resolvedClientId
+      ? await db.collection("admins").doc(resolvedClientId).get()
+      : null;
+    const adminData = adminDoc?.exists ? adminDoc.data() : null;
+    const organizationName = adminData?.businessName || adminData?.name || "";
+    const mergedBusinessContext = [adminData?.businessContext, agentData.businessContext]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .join("\n\n");
+    const effectiveSystemInstruction = agentData.systemInstruction || adminData?.systemInstruction || "";
     
     console.log("🔧 [CONFIG] Datos cargados de Firestore:", {
-      clientId: agentData.clientId,
+      name: agentData.name,
+      clientId: resolvedClientId,
+      organizationName,
+      hasAdminInstruction: !!adminData?.systemInstruction,
+      hasAdminBusinessContext: !!adminData?.businessContext,
       skills: agentData.skills,
       functions: agentData.functions,
       knowledgeDocs: agentData.knowledgeDocs?.length || 0,
@@ -56,9 +70,12 @@ export async function configNode(state: AgentStateType, _: any, config?: Runnabl
 
     // Devolvemos las actualizaciones al estado
     const hydratedConfig = {
-      clientId: agentData.clientId || clientId || "",
-      businessContext: agentData.businessContext || "",
-      systemInstruction: agentData.systemInstruction || "",
+      clientId: resolvedClientId,
+      agentName: agentData.name || "",
+      agentDescription: agentData.description || "",
+      organizationName,
+      businessContext: mergedBusinessContext,
+      systemInstruction: effectiveSystemInstruction,
       allowedDocIds: agentData.knowledgeDocs || [],
       skills: agentData.skills || [],
       functions: agentData.functions || [],

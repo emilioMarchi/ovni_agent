@@ -2,12 +2,12 @@ import { formatInTimeZone, toDate } from 'date-fns-tz';
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
 const DAY_NAMES = {
     'Sunday': 'domingo',
-    'Monday': 'martes',
-    'Tuesday': 'miércoles',
-    'Wednesday': 'jueves',
-    'Thursday': 'viernes',
-    'Friday': 'sábado',
-    'Saturday': 'domingo',
+    'Monday': 'lunes',
+    'Tuesday': 'martes',
+    'Wednesday': 'miercoles',
+    'Thursday': 'jueves',
+    'Friday': 'viernes',
+    'Saturday': 'sabado',
 };
 /**
  * Obtiene la fecha actual en la zona horaria de Argentina en formato YYYY-MM-DD.
@@ -27,7 +27,17 @@ export function getDayName(dateString) {
  * Normaliza el nombre del día (minúsculas, sin acentos).
  */
 export function normalizeDayName(day) {
-    return DAY_NAMES[day] || day.toLowerCase();
+    return (DAY_NAMES[day] || day.toLowerCase())
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+/**
+ * Suma días calendario a una fecha YYYY-MM-DD respetando la zona horaria de Argentina.
+ */
+export function addDaysToDateString(dateString, days) {
+    const date = toDate(`${dateString}T12:00:00`, { timeZone: TIMEZONE });
+    date.setDate(date.getDate() + days);
+    return formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd');
 }
 /**
  * Formatea una fecha ISO para mostrarla al usuario: "Martes 31 de marzo".

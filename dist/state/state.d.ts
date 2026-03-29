@@ -21,6 +21,18 @@ export declare const AgentState: import("@langchain/langgraph").AnnotationRoot<{
      */
     agentId: import("@langchain/langgraph").LastValue<string>;
     /**
+     * Nombre visible del agente configurado.
+     */
+    agentName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    /**
+     * Descripción funcional del agente.
+     */
+    agentDescription: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    /**
+     * Nombre del negocio u organización dueña del agente.
+     */
+    organizationName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
+    /**
      * Perfil del usuario final recuperado de Firestore.
      */
     userInfo: import("@langchain/langgraph").BinaryOperatorAggregate<UserInfo, UserInfo>;

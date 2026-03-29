@@ -1,7 +1,12 @@
 // OVNI Chat Widget Loader - universal para cualquier sitio web
 (function(){
   if (window.OvniWidget) return; // Evitar doble carga
-  var DEFAULT_API_URL = 'http://64.23.138.249:8080';
+  var PROD_API_URL = 'http://64.23.138.249:8080';
+  var DEV_API_URL = 'http://localhost:8080';
+
+  function isLocalHostname(hostname) {
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+  }
 
   function getLoaderBaseUrl() {
     var currentScript = document.currentScript;
@@ -10,13 +15,32 @@
         return new URL(currentScript.src).origin;
       } catch (e) {}
     }
-    return DEFAULT_API_URL;
+    return PROD_API_URL;
+  }
+
+  function resolveApiUrl(config) {
+    if (config && config.apiUrl) return config.apiUrl;
+
+    try {
+      if (window.location && isLocalHostname(window.location.hostname)) {
+        return DEV_API_URL;
+      }
+    } catch (e) {}
+
+    var loaderBaseUrl = getLoaderBaseUrl();
+    try {
+      if (loaderBaseUrl && isLocalHostname(new URL(loaderBaseUrl).hostname)) {
+        return DEV_API_URL;
+      }
+    } catch (e) {}
+
+    return loaderBaseUrl || PROD_API_URL;
   }
 
   window.OvniWidget = {
     init: function(config) {
       if (document.getElementById('ovniWidget')) return;
-      var resolvedApiUrl = (config && config.apiUrl) || getLoaderBaseUrl() || DEFAULT_API_URL;
+      var resolvedApiUrl = resolveApiUrl(config);
       var logoUrl = resolvedApiUrl.replace(/\/$/, '') + '/logo.png';
       // Cargar CSS
       var style = document.createElement('style');

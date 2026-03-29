@@ -18,6 +18,27 @@ export const AgentState = Annotation.Root({
      */
     agentId: Annotation(),
     /**
+     * Nombre visible del agente configurado.
+     */
+    agentName: Annotation({
+        reducer: (old, newest) => newest ?? old,
+        default: () => "",
+    }),
+    /**
+     * Descripción funcional del agente.
+     */
+    agentDescription: Annotation({
+        reducer: (old, newest) => newest ?? old,
+        default: () => "",
+    }),
+    /**
+     * Nombre del negocio u organización dueña del agente.
+     */
+    organizationName: Annotation({
+        reducer: (old, newest) => newest ?? old,
+        default: () => "",
+    }),
+    /**
      * Perfil del usuario final recuperado de Firestore.
      */
     userInfo: Annotation({
