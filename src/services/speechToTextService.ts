@@ -1,18 +1,23 @@
-// Google Speech-to-Text Service
-// Convierte audio (buffer) a texto usando Google Cloud Speech
-import { SpeechClient } from '@google-cloud/speech';
-import fs from 'fs';
+// Speech-to-Text Service usando Google Cloud Speech-to-Text
+import speech from '@google-cloud/speech';
 
-const client = new SpeechClient();
+const sttClient = new speech.SpeechClient();
 
-export async function speechToText(audioBuffer: Buffer, encoding: string = 'LINEAR16', sampleRateHertz: number = 16000, languageCode: string = 'es-AR'): Promise<string> {
-  const audio = { content: audioBuffer.toString('base64') };
-  const config = { encoding, sampleRateHertz, languageCode };
-  const request = { audio, config };
-  const [response] = await client.recognize(request);
-  const transcription = response.results?.map(r => r.alternatives?.[0]?.transcript).join(' ') || '';
-  return transcription;
+export async function speechToText(audioBuffer: Buffer, _mimeType?: string, _sampleRate?: number, languageCode: string = 'es-ES'): Promise<string> {
+  const request = {
+    audio: { content: audioBuffer.toString('base64') },
+    config: {
+      encoding: 'WEBM_OPUS' as const,
+      sampleRateHertz: 48000,
+      languageCode,
+    },
+  };
+
+  const [response] = await sttClient.recognize(request);
+
+  if (!response.results || response.results.length === 0) return '';
+
+  return response.results
+    .map(r => r.alternatives?.[0]?.transcript ?? '')
+    .join(' ');
 }
-
-// Uso:
-// const text = await speechToText(fs.readFileSync('audio.wav'));

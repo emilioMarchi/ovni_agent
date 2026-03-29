@@ -52,7 +52,7 @@ async function testContextLayers() {
     contextQuery: "PalabraClaveUnica",
   };
 
-  const result = await graph.invoke(initialState, config);
+  const result = await graph.invoke(initialState, config) as Record<string, unknown>;
   console.log("\n🧪 Resultado del grafo con capas de contexto:");
   console.log(result.contextHistory);
 }

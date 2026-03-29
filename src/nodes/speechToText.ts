@@ -1,23 +1,30 @@
 // Nodo para Speech-to-Text en el grafo OVNI
 import { speechToText } from '../services/speechToTextService.js';
 import { AgentStateType } from '../state/state.js';
+import { HumanMessage } from '@langchain/core/messages';
 
 /**
- * Si la entrada es audio, convierte a texto y lo agrega a state.messages.
- * Si no, pasa el estado sin cambios.
+ * Si el estado tiene un audioBuffer pendiente, lo convierte a texto
+ * y lo agrega como mensaje de usuario. Si no, pasa sin cambios.
  */
 export async function speechToTextNode(state: AgentStateType) {
-  const lastMsg = state.messages[state.messages.length - 1];
-  if (lastMsg && lastMsg.type === 'audio' && lastMsg.audioBuffer) {
-    const transcript = await speechToText(lastMsg.audioBuffer);
-    // Reemplaza el mensaje de audio por uno de texto
-    const newMessages = state.messages.slice(0, -1).concat({
-      ...lastMsg,
-      type: 'text',
-      content: transcript,
-      transcript,
-    });
-    return { ...state, messages: newMessages };
+  // Verificar que sea un Buffer real (no objeto serializado del checkpoint)
+  if (state.audioBuffer && Buffer.isBuffer(state.audioBuffer)) {
+    console.log(`🎙️ [STT] Buffer recibido: ${state.audioBuffer.byteLength} bytes`);
+    const transcript = await speechToText(state.audioBuffer, 'WEBM_OPUS', 48000);
+    console.log(`🎙️ [STT] Transcripción: "${transcript}"`);
+    if (!transcript.trim()) {
+      console.warn('🎙️ [STT] Transcripción vacía, descartando audio');
+      return { audioBuffer: null };
+    }
+    return {
+      messages: [new HumanMessage(transcript)],
+      audioBuffer: null,
+    };
   }
-  return state;
+  if (state.audioBuffer) {
+    // Objeto serializado del checkpoint, limpiar
+    console.warn('🎙️ [STT] audioBuffer no es un Buffer real, limpiando estado');
+  }
+  return { audioBuffer: null };
 }

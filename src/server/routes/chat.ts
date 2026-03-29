@@ -1,13 +1,17 @@
 import { Router, Request, Response } from "express";
 import { graph } from "../../graph/index.js";
 import admin from "../firebase.js";
+import { speechToText } from "../../services/speechToTextService.js";
 
 const router = Router();
 const db = admin.firestore();
 
 interface ChatRequest {
   agentId: string;
-  message: string;
+  message?: string;
+  audio?: string; // base64-encoded audio
+  audioMimeType?: string;
+  outputAudio?: boolean;
   threadId?: string;
   clientId?: string;
   metadata?: Record<string, unknown>;
@@ -16,12 +20,12 @@ interface ChatRequest {
 
 router.post("/invoke", async (req: Request, res: Response) => {
   try {
-    const { agentId, message, threadId, clientId: bodyClientId, endSession } = req.body as ChatRequest;
+    const { agentId, message, audio, audioMimeType, outputAudio, threadId, clientId: bodyClientId, endSession } = req.body as ChatRequest;
 
-    if (!agentId || !message) {
+    if (!agentId || (!message && !audio)) {
       return res.status(400).json({ 
         success: false, 
-        error: "agentId y message son requeridos" 
+        error: "agentId y message o audio son requeridos" 
       });
     }
 
@@ -49,27 +53,53 @@ router.post("/invoke", async (req: Request, res: Response) => {
       },
     };
 
-    const inputState = {
-      messages: [{ role: "user", content: message }],
+    const inputState: Record<string, unknown> = {
+      messages: message ? [{ role: "user", content: message }] : [],
       agentId,
       clientId: clientId || "unknown",
       threadId: resolvedThreadId,
       endSession: endSession || false,
+      outputAudio: !!(audio || outputAudio),
     };
+
+    if (audio) {
+      const audioBuffer = Buffer.from(audio, "base64");
+      console.log(`🎙️ [ROUTE] Audio recibido: ${audioBuffer.byteLength} bytes, mimeType: ${audioMimeType || 'no especificado'}`);
+      // STT en el route para poder manejar errores antes de invocar el grafo
+      const transcript = await speechToText(audioBuffer, audioMimeType).catch((e: Error) => {
+        console.error("🎙️ [ROUTE] Error STT completo:", e);
+        return "";
+      });
+      console.log(`🎙️ [ROUTE] Transcripción: "${transcript}"`);
+      if (!transcript.trim()) {
+        return res.json({
+          success: true,
+          data: {
+            response: "No pude escuchar bien el audio. ¿Podés repetirlo?",
+            threadId: resolvedThreadId,
+          },
+        });
+      }
+      inputState.messages = [{ role: "user", content: transcript }];
+      inputState.audioBuffer = null; // Limpiar para no restaurar del checkpoint
+    }
 
     console.log(`📨 Invocando agente ${agentId} para cliente ${clientId}${endSession ? ' (FIN DE SESIÓN)' : ''}`);
 
     const result = await graph.invoke(inputState, config);
 
     const lastMessage = result.messages[result.messages.length - 1];
-    
-    res.json({ 
-      success: true, 
-      data: {
-        response: lastMessage.content,
-        threadId: config.configurable.thread_id,
-      }
-    });
+
+    const responseData: Record<string, unknown> = {
+      response: lastMessage.content,
+      threadId: config.configurable.thread_id,
+    };
+
+    if (result.audioBuffer) {
+      responseData.audioBase64 = (result.audioBuffer as Buffer).toString("base64");
+    }
+
+    res.json({ success: true, data: responseData });
   } catch (error) {
     console.error("Error invoking agent:", error);
     res.status(500).json({ success: false, error: "Error al invocar agente" });

@@ -13,7 +13,7 @@ export async function historyRetrieverNode(state: AgentStateType) {
 
   // Si Gemini/modelo requiere más contexto (simulación: menos de 5 mensajes)
   if (contextHistory.length < 5) {
-    const older = await getOlderMessages(threadId, agentId, 15);
+    const older = await getOlderMessages(threadId, 15, 15);
     contextHistory = contextHistory.concat(older);
   }
 

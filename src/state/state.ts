@@ -110,6 +110,38 @@ export const AgentState = Annotation.Root({
     reducer: (old, newest) => newest ?? old,
     default: () => "",
   }),
+
+  /**
+   * Flag para indicar que la respuesta debe incluir audio (TTS).
+   */
+  outputAudio: Annotation<boolean>({
+    reducer: (old, newest) => newest ?? old,
+    default: () => false,
+  }),
+
+  /**
+   * Buffer de audio generado por TTS (si outputAudio es true).
+   */
+  audioBuffer: Annotation<Buffer | null>({
+    reducer: (_, newest) => newest ?? null,
+    default: () => null,
+  }),
+
+  /**
+   * Historial contextual recuperado de Firestore para enriquecer el contexto del modelo.
+   */
+  contextHistory: Annotation<Array<{role: string, content: string, timestamp: string}>>({
+    reducer: (old, newest) => newest ?? old,
+    default: () => [],
+  }),
+
+  /**
+   * Query contextual para búsqueda semántica en el historial.
+   */
+  contextQuery: Annotation<string>({
+    reducer: (old, newest) => newest ?? old,
+    default: () => "",
+  }),
 });
 
 /**

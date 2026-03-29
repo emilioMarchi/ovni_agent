@@ -21,7 +21,7 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-client-id"],
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static("public"));
 
 // Middleware de seguridad básico para headers de cliente

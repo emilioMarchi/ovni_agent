@@ -7,6 +7,8 @@ import { modelNode } from "../nodes/model.js";
 import { toolNodeWithLogs } from "../nodes/tools.js";
 import { saveHistoryNode } from "../nodes/save_history.js";
 import { historyRetrieverNode } from "../nodes/history_retriever.js";
+import { speechToTextNode } from "../nodes/speechToText.js";
+import { textToSpeechNode } from "../nodes/textToSpeech.js";
 
 /**
  * Orquestador del Agente OVNI v2.
@@ -16,31 +18,33 @@ const workflow = new StateGraph(AgentState)
   .addNode("config", configNode)
   .addNode("rag", ragNode)
   .addNode("history_retriever", historyRetrieverNode)
+  .addNode("speech_to_text", speechToTextNode)
   .addNode("agent", modelNode)
   .addNode("tools", toolNodeWithLogs)
+  .addNode("text_to_speech", textToSpeechNode)
   .addNode("save_history", saveHistoryNode)
-
 
   .addEdge(START, "config")
   .addEdge("config", "rag")
   .addEdge("rag", "history_retriever")
-  .addEdge("history_retriever", "agent")
+  .addEdge("history_retriever", "speech_to_text")
+  .addEdge("speech_to_text", "agent")
 
-  // 3. Bordes condicionales: Si el modelo genera 'tool_calls', ir al nodo 'tools'.
-  // Si no, ir al nodo de persistencia de historial.
+  // Si el modelo genera tool_calls, ir a tools. Si no, ir a TTS.
   .addConditionalEdges(
     "agent",
     toolsCondition,
     {
       tools: "tools",
-      __end__: "save_history",
+      __end__: "text_to_speech",
     }
   )
 
-  // 4. Tras ejecutar las herramientas, volver al agente para procesar resultados.
+  // Tras ejecutar herramientas, volver al agente.
   .addEdge("tools", "agent")
 
-  // 5. El nodo de persistencia termina el flujo
+  // TTS -> guardar historial -> fin
+  .addEdge("text_to_speech", "save_history")
   .addEdge("save_history", END);
 
 /**

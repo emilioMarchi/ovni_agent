@@ -83,15 +83,15 @@ export async function saveHistoryNode(state: AgentStateType) {
 
     // Sobreescribir el array de mensajes completo (LangGraph ya tiene el estado acumulado)
     const docRef = db.collection("history").doc(docId);
-    const docData: any = {
+    const docData: Record<string, any> = {
       clientId: clientId || "unknown",
       agentId: agentId || "unknown",
       userId,
-      userName,
       threadId,
       messages: serializableMessages,
       lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
     };
+    if (userName) docData.userName = userName;
     if (typeof summary === 'string' && summary.trim() !== '') {
       docData.summary = summary;
     }
