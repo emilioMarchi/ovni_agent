@@ -920,6 +920,7 @@
             <i data-lucide="zap" style="color: var(--green)"></i>
             <span style="color: var(--green)">El documento será fragmentado y vectorizado automáticamente para RAG usando Gemini 2.5 Flash.</span>
           </div>
+          <div id="doc-processing-panel" style="display:none;margin-top:16px"></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeModal('modal-doc')">Cancelar</button>
@@ -1064,6 +1065,10 @@
     let testAgentId = null;
     let testClientId = null;
     let testThreadId = null;
+    let widgetPreviewAgentId = null;
+    let widgetPreviewClientId = null;
+    let activeDocumentUploadId = null;
+    let documentStatusPollTimer = null;
 
     // ===== HELPERS =====
     async function apiFetch(url, options = {}) {
@@ -1094,6 +1099,176 @@
       setTimeout(() => toast.remove(), 4000);
     }
 
+    function escapeHtml(value = '') {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function uploadWithProgress(url, formData, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE}${url}`);
+        xhr.setRequestHeader('x-client-id', masterClientId);
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable && onProgress) {
+            onProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        });
+
+        xhr.onload = () => {
+          let data = {};
+          try {
+            data = JSON.parse(xhr.responseText || '{}');
+          } catch {
+            reject(new Error('Respuesta inválida del servidor'));
+            return;
+          }
+
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(data);
+            return;
+          }
+
+          reject(new Error(data.error || 'Error al subir archivo'));
+        };
+
+        xhr.onerror = () => reject(new Error('No se pudo subir el archivo'));
+        xhr.send(formData);
+      });
+    }
+
+    function formatDocumentStage(stage) {
+      const labels = {
+        upload_transfer: 'Subiendo archivo',
+        upload_complete: 'Archivo recibido',
+        extracting: 'Extrayendo contenido',
+        analyzing: 'Analizando con Gemini',
+        structuring: 'Preparando fragmentos',
+        catalog_index: 'Indexando catálogo',
+        fragment_index: 'Indexando fragmentos',
+        finalizing: 'Finalizando',
+        completed: 'Completado',
+        failed: 'Error',
+      };
+      return labels[stage] || stage || 'Sin estado';
+    }
+
+    function setDocumentSubmitState(isBusy, label) {
+      const btn = document.getElementById('btn-submit-doc');
+      btn.disabled = isBusy;
+      btn.textContent = label || 'Subir y Procesar';
+    }
+
+    function resetDocumentProcessingPanel() {
+      const panel = document.getElementById('doc-processing-panel');
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+    }
+
+    function renderDocumentProcessingPanel(doc) {
+      const panel = document.getElementById('doc-processing-panel');
+      if (!doc) {
+        panel.style.display = 'none';
+        panel.innerHTML = '';
+        return;
+      }
+
+      const status = doc.status || 'processing';
+      const progress = Math.max(0, Math.min(100, Number(doc.processingProgress || 0)));
+      const stage = formatDocumentStage(doc.processingStage);
+      const logs = Array.isArray(doc.processingLogs) ? doc.processingLogs : [];
+      const statusMeta = {
+        ready: { color: 'var(--green)', background: 'rgba(34, 197, 94, 0.08)', label: 'Listo' },
+        error: { color: 'var(--red)', background: 'rgba(239, 68, 68, 0.08)', label: 'Error' },
+        processing: { color: 'var(--orange)', background: 'rgba(249, 115, 22, 0.08)', label: 'Procesando' },
+      }[status] || { color: 'var(--orange)', background: 'rgba(249, 115, 22, 0.08)', label: status };
+
+      panel.style.display = 'block';
+      panel.innerHTML = `
+        <div style="border:1px solid ${statusMeta.color}33;border-radius:10px;padding:14px;background:${statusMeta.background};display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <div>
+              <div style="font-size:12px;font-weight:700;color:${statusMeta.color};text-transform:uppercase;letter-spacing:0.08em">${escapeHtml(statusMeta.label)}</div>
+              <div style="font-size:14px;font-weight:600;color:var(--text-primary)">${escapeHtml(doc.filename || 'Documento')}</div>
+              <div style="font-size:12px;color:var(--text-secondary)">${escapeHtml(stage)}</div>
+            </div>
+            <div style="font-size:18px;font-weight:700;color:${statusMeta.color}">${progress}%</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="height:8px;border-radius:999px;background:rgba(0,0,0,0.08);overflow:hidden">
+              <div style="height:100%;width:${progress}%;background:${statusMeta.color};transition:width 0.25s ease"></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--text-muted)">
+              <span>${escapeHtml(doc.partsCount ? `${doc.partsCount} fragmentos detectados` : 'Procesando contenido...')}</span>
+              <span>${escapeHtml(doc.updatedAt ? new Date(doc.updatedAt).toLocaleTimeString() : '')}</span>
+            </div>
+          </div>
+          ${doc.error ? `<div style="font-size:12px;color:var(--red);background:rgba(239, 68, 68, 0.08);border:1px solid rgba(239,68,68,0.16);padding:10px;border-radius:8px">${escapeHtml(doc.error)}</div>` : ''}
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em">Log de procesamiento</div>
+            <div style="max-height:180px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,0.02);padding:10px;display:flex;flex-direction:column;gap:8px">
+              ${logs.length > 0 ? logs.slice(-8).map(log => `
+                <div style="font-size:12px;line-height:1.45">
+                  <div style="color:var(--text-muted);font-size:10px">${escapeHtml(log.at ? new Date(log.at).toLocaleTimeString() : '')}</div>
+                  <div style="color:var(--text-primary)">${escapeHtml(log.message || '')}</div>
+                </div>
+              `).join('') : '<div style="font-size:12px;color:var(--text-muted)">Esperando eventos de procesamiento...</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function stopDocumentStatusPolling() {
+      if (documentStatusPollTimer) {
+        clearInterval(documentStatusPollTimer);
+        documentStatusPollTimer = null;
+      }
+      activeDocumentUploadId = null;
+      setDocumentSubmitState(false, 'Subir y Procesar');
+    }
+
+    async function refreshActiveDocumentStatus() {
+      if (!activeDocumentUploadId) return;
+
+      try {
+        const data = await apiFetch(`/api/documents/${activeDocumentUploadId}/status`);
+        const doc = data.data;
+        renderDocumentProcessingPanel(doc);
+
+        if (currentAdminId) {
+          loadDocuments(currentAdminId);
+        }
+
+        if (doc.status === 'ready') {
+          stopDocumentStatusPolling();
+          document.getElementById('form-doc').reset();
+          showToast('Documento procesado e indexado correctamente', 'success');
+        }
+
+        if (doc.status === 'error') {
+          stopDocumentStatusPolling();
+          showToast(doc.error || 'Error al procesar archivo', 'error');
+        }
+      } catch (e) {
+        stopDocumentStatusPolling();
+        showToast(e.message || 'No se pudo consultar el estado del documento', 'error');
+      }
+    }
+
+    function startDocumentStatusPolling(docId) {
+      stopDocumentStatusPolling();
+      activeDocumentUploadId = docId;
+      setDocumentSubmitState(true, 'Procesando...');
+      refreshActiveDocumentStatus();
+      documentStatusPollTimer = setInterval(refreshActiveDocumentStatus, 2000);
+    }
+
     function openModal(id) {
       document.getElementById(id).classList.add('active');
       lucide.createIcons();
@@ -1102,6 +1277,77 @@
     function closeModal(id) {
       document.getElementById(id).classList.remove('active');
     }
+
+    async function destroyWidgetPreview() {
+      try {
+        if (window.ovniChat && typeof window.ovniChat.endSession === 'function') {
+          await window.ovniChat.endSession();
+        }
+      } catch {}
+
+      const widgetEl = document.getElementById('ovniWidget');
+      if (widgetEl) {
+        widgetEl.remove();
+      }
+
+      window.ovniChat = null;
+    }
+
+    async function syncWidgetPreview(agentId, clientId) {
+      if (!window.OvniWidget || !agentId || !clientId) {
+        return;
+      }
+
+      if (widgetPreviewAgentId === agentId && widgetPreviewClientId === clientId && document.getElementById('ovniWidget')) {
+        return;
+      }
+
+      await destroyWidgetPreview();
+
+      widgetPreviewAgentId = agentId;
+      widgetPreviewClientId = clientId;
+
+      window.OvniWidget.init({
+        agentId,
+        clientId,
+        apiUrl: window.location.origin,
+      });
+    }
+
+    window.openAgentModal = async function() {
+      if (!currentAdminId) {
+        showToast('Seleccioná un admin antes de crear un agente', 'error');
+        return;
+      }
+
+      editingAgentId = null;
+      const form = document.getElementById('form-agent');
+      form.reset();
+      document.getElementById('agent-client-id').value = currentAdminId;
+      document.getElementById('modal-agent-title').innerHTML = '<i data-lucide="bot"></i>Nuevo Agente';
+      document.getElementById('modal-agent-btn-text').textContent = 'Guardar Agente';
+      document.querySelector('#form-agent [name="temperature"]').value = '0.7';
+      document.querySelector('#form-agent [name="type"]').value = 'general';
+      document.querySelector('#form-agent [name="profile"]').value = 'general';
+      document.querySelector('#form-agent [name="active"]').value = 'true';
+      document.querySelectorAll('#form-agent [name="functions"]').forEach(cb => {
+        cb.checked = true;
+      });
+
+      await loadKnowledgeDocsForAgentForm(currentAdminId, []);
+      openModal('modal-agent');
+    };
+
+    window.copyAgentWidget = async function(agentId, clientId) {
+      const snippet = `<script src="${window.location.origin}/ovni-loader.js"><\/script>\n<script>\n  OvniWidget.init({\n    agentId: '${agentId}',\n    clientId: '${clientId}',\n    apiUrl: '${window.location.origin}'\n  });\n<\/script>`;
+
+      try {
+        await navigator.clipboard.writeText(snippet);
+        showToast('Código del widget copiado al portapapeles', 'success');
+      } catch (e) {
+        showToast('No se pudo copiar el widget al portapapeles', 'error');
+      }
+    };
 
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
       overlay.addEventListener('click', (e) => {
@@ -1314,6 +1560,7 @@
       try {
         const data = await apiFetch('/api/admins');
         const container = document.getElementById('select-admin-list');
+        document.getElementById('btn-create-agent').disabled = !currentAdminId;
         container.innerHTML = (data.data || []).map(a => `
           <div class="panel-list-item ${currentAdminId === a.id ? 'active' : ''}" onclick="selectAdmin('${a.id}','${a.name}')">
             <i data-lucide="folder"></i> ${a.name || a.id.slice(0, 12)}
@@ -1418,11 +1665,25 @@
             <button class="client-btn" style="flex:1" onclick="testThisAgent('${a.id}', '${a.name}', '${currentAdminId}')">
               <i data-lucide="play"></i> Probar
             </button>
+            <button class="client-btn" style="flex:1" onclick="copyAgentWidget('${a.id}', '${a.clientId || currentAdminId}')" title="Copiar embed del widget">
+              <i data-lucide="copy"></i> Widget
+            </button>
           </div>
         </div>
       `).join('');
       lucide.createIcons();
     }
+
+    window.deleteAgent = async (agentId) => {
+      if (!confirm('¿Eliminar este agente? Se borrarán todas sus conversaciones, productos, logs y vectores asociados.')) return;
+      try {
+        await apiFetch(`/api/agents/${agentId}`, { method: 'DELETE' });
+        showToast('Agente y datos relacionados eliminados', 'success');
+        loadAgents(currentAdminId);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
 
     window.editAgent = async (agentId) => {
       editingAgentId = agentId;
@@ -1719,8 +1980,19 @@
           <tbody>
             ${docs.map(d => {
               const status = d.status || 'ready';
-              const statusColor = status === 'ready' ? 'var(--green)' : 'var(--orange)';
-              const statusBg = status === 'ready' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(249, 115, 22, 0.1)';
+              const progress = Math.max(0, Math.min(100, Number(d.processingProgress || 0)));
+              const stage = formatDocumentStage(d.processingStage);
+              const lastLog = Array.isArray(d.processingLogs) && d.processingLogs.length > 0 ? d.processingLogs[d.processingLogs.length - 1].message : '';
+              const statusColor = status === 'ready'
+                ? 'var(--green)'
+                : status === 'error'
+                  ? 'var(--red)'
+                  : 'var(--orange)';
+              const statusBg = status === 'ready'
+                ? 'rgba(34, 197, 94, 0.1)'
+                : status === 'error'
+                  ? 'rgba(239, 68, 68, 0.1)'
+                  : 'rgba(249, 115, 22, 0.1)';
               
               return `
                 <tr style="border-bottom:1px solid var(--border-hover)">
@@ -1730,8 +2002,21 @@
                       ${status === 'processing' ? '<i data-lucide="loader" style="width:10px;height:10px;animation:spin 1s linear infinite;display:inline-block;margin-right:4px"></i>' : ''}
                       ${status}
                     </span>
+                    ${status !== 'ready' ? `
+                      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-width:220px">
+                        <div style="font-size:11px;color:var(--text-secondary)">${escapeHtml(stage)}</div>
+                        <div style="height:6px;border-radius:999px;background:rgba(0,0,0,0.08);overflow:hidden">
+                          <div style="height:100%;width:${progress}%;background:${statusColor};transition:width 0.25s ease"></div>
+                        </div>
+                        <div style="font-size:10px;color:var(--text-muted)">${progress}%</div>
+                      </div>
+                    ` : ''}
                   </td>
-                  <td style="padding:12px;color:var(--text-secondary)">${d.description || '-'}</td>
+                  <td style="padding:12px;color:var(--text-secondary)">
+                    <div>${d.description || '-'}</div>
+                    ${lastLog ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">${escapeHtml(lastLog)}</div>` : ''}
+                    ${d.error ? `<div style="font-size:11px;color:var(--red);margin-top:6px">${escapeHtml(d.error)}</div>` : ''}
+                  </td>
                   <td style="padding:12px;color:var(--text-muted)">${new Date(d.createdAt).toLocaleDateString()}</td>
                   <td style="padding:12px;text-align:right">
                     <button class="btn btn-ghost btn-icon btn-sm" onclick="deleteDocument('${d.id}')" title="Eliminar">
@@ -1749,30 +2034,46 @@
 
     document.getElementById('form-doc').onsubmit = async (e) => {
       e.preventDefault();
-      const btn = document.getElementById('btn-submit-doc');
-      const originalText = btn.textContent;
       
       try {
-        btn.disabled = true;
-        btn.textContent = 'Procesando...';
+        setDocumentSubmitState(true, 'Subiendo...');
+        resetDocumentProcessingPanel();
         
         const formData = new FormData(e.target);
-        
-        // Enviar al nuevo endpoint de upload
-        const result = await apiFetch('/api/documents/upload', { 
-          method: 'POST', 
-          body: formData 
+        const file = formData.get('file');
+        const filename = file && typeof file === 'object' && 'name' in file ? file.name : 'archivo';
+
+        renderDocumentProcessingPanel({
+          filename,
+          status: 'processing',
+          processingStage: 'upload_transfer',
+          processingProgress: 0,
+          processingLogs: [{ at: new Date().toISOString(), message: 'Subiendo archivo al servidor...' }],
         });
         
-        showToast('Documento procesado e indexado correctamente', 'success');
-        closeModal('modal-doc');
-        e.target.reset();
-        loadDocuments(currentAdminId);
+        const result = await uploadWithProgress('/api/documents/upload', formData, (percent) => {
+          renderDocumentProcessingPanel({
+            filename,
+            status: 'processing',
+            processingStage: 'upload_transfer',
+            processingProgress: percent,
+            processingLogs: [{ at: new Date().toISOString(), message: `Subida al servidor: ${percent}%` }],
+          });
+        });
+
+        showToast('Archivo recibido. Procesando documento...', 'info');
+        startDocumentStatusPolling(result.data.id);
       } catch (e) {
+        stopDocumentStatusPolling();
         showToast(e.message || 'Error al procesar archivo', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = originalText;
+        renderDocumentProcessingPanel({
+          filename: 'Documento',
+          status: 'error',
+          processingStage: 'failed',
+          processingProgress: 100,
+          error: e.message || 'Error al subir archivo',
+          processingLogs: [{ at: new Date().toISOString(), message: e.message || 'Error al subir archivo' }],
+        });
       }
     };
 
@@ -1816,6 +2117,7 @@
       document.getElementById('test-empty').style.display = 'none';
       document.getElementById('test-chat-area').style.display = 'block';
       document.getElementById('test-messages').innerHTML = `<div class="empty-state" style="padding:20px"><i data-lucide="message-circle"></i><p>Comenzá a chatear con <strong>${name}</strong></p></div>`;
+      syncWidgetPreview(agentId, clientId);
       lucide.createIcons();
     };
 
@@ -1875,13 +2177,18 @@
     checkAuth();
     lucide.createIcons();
   </script>
-  <!-- Widget de Chat Rediseñado (Universal Loader) -->
   <script src="/ovni-loader.js"></script>
   <script>
-    OvniWidget.init({
-      agentId: 'agent_f2c43c56-2944-4f37-b7d5-b59427b47f09',
-      clientId: 'org_2d8f74a1-b9c5-4e2a-bb6d-f492a8e310d5',
-      apiUrl: window.location.origin
+    window.addEventListener('load', () => {
+      if (!window.OvniWidget || document.getElementById('ovniWidget')) {
+        return;
+      }
+
+      window.OvniWidget.init({
+        agentId: 'agent_a5de54451f36487aa43a9642',
+        clientId: 'org_2d8f74a1-b9c5-4e2a-bb6d-f492a8e310d5',
+        apiUrl: 'http://localhost:8080'
+      });
     });
   </script>
 </body>

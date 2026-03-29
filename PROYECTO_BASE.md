@@ -30,6 +30,9 @@ El siguiente paso evolutivo es descentralizar la configuración:
     - Gestionar sus propios agentes y herramientas.
     - Aprobar/Rechazar solicitudes de reuniones de sus clientes.
 - [ ] **Gestión de Agentes**: UI para asignar `skills` y `functions` de forma dinámica por `agentId`.
+- [ ] **Búsqueda Semántica de Funciones**: Incorporar selección semántica de tools/funciones vía Pinecone para complementar el routing estático actual.
+- [ ] **Sincronización de Catálogo de Funciones**: Normalizar `global_functions` y `function_groups` en Pinecone según las tools reales del código y remover funciones legacy o inexistentes.
+- [ ] **Búsqueda Semántica de Productos**: Definir ingesta de catálogo hacia Pinecone y recuperación semántica usando Firestore o documentos como fuente de verdad.
 
 ## 🏗️ Infraestructura y Escalamiento (Fase Producción)
 Mejoras arquitectónicas pendientes para soportar alta demanda:

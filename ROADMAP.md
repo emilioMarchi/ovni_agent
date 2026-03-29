@@ -42,6 +42,9 @@ Este documento detalla el progreso y la planificación del Agente OVNI v2 (Matri
 ## 🚀 Fase 11: Tool Intelligence (Tool RAG)
 - [ ] **Tool RAG**: Indexar descripciones de herramientas en Pinecone (`tool_catalog`).
 - [ ] **Detector de Intención**: Nodo previo al modelo que selecciona dinámicamente las 3-5 herramientas más relevantes.
+- [ ] **Búsqueda Semántica de Funciones**: Consultar Pinecone para resolver funciones/capacidades relevantes en lugar de depender solo de mapeos estáticos y routing manual.
+- [ ] **Sincronización de Catálogo de Funciones**: Alinear `global_functions` y `function_groups` de Pinecone con las tools y funciones reales de la app, eliminando entradas legacy o huérfanas.
+- [ ] **Búsqueda Semántica de Productos**: Indexar catálogo en Pinecone (`products_<clientId>`) y recuperar candidatos por similitud vectorial antes de hidratar detalles desde Firestore o documentos.
 
 ---
 

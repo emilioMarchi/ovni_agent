@@ -139,8 +139,34 @@ router.put("/:id", async (req: Request, res: Response) => {
 
 router.delete("/:id", async (req: Request, res: Response) => {
   try {
-    await db.collection("agents").doc(req.params.id).delete();
-    res.json({ success: true, message: "Agente eliminado" });
+    const agentId = req.params.id;
+    const batch = db.batch();
+
+    // 1. Verificar que el agente existe
+    const agentDoc = await db.collection("agents").doc(agentId).get();
+    if (!agentDoc.exists) {
+      return res.status(404).json({ success: false, error: "Agente no encontrado" });
+    }
+
+    // 2. Eliminar agent_metadata del agente
+    const metadataSnap = await db.collection("agent_metadata").where("agentId", "==", agentId).get();
+    metadataSnap.docs.forEach(doc => batch.delete(doc.ref));
+
+    // 3. Eliminar usage_logs del agente
+    const logsSnap = await db.collection("usage_logs").where("agentId", "==", agentId).get();
+    logsSnap.docs.forEach(doc => batch.delete(doc.ref));
+
+    // NOTA: Products pertenecen al admin (clientId), no al agente. Se eliminan en admins.ts.
+    // NOTA: El historial (history + checkpoints) NO se elimina al borrar un agente.
+    // Solo se elimina cuando se borra el admin/organización completa (ver admins.ts).
+
+    // 4. Eliminar el agente
+    batch.delete(db.collection("agents").doc(agentId));
+
+    await batch.commit();
+
+    console.log(`🗑️ Agente ${agentId} eliminado con cascade (metadata: ${metadataSnap.size}, logs: ${logsSnap.size}) — historial y products preservados`);
+    res.json({ success: true, message: "Agente y datos relacionados eliminados" });
   } catch (error) {
     console.error("Error deleting agent:", error);
     res.status(500).json({ success: false, error: "Error al eliminar agente" });
