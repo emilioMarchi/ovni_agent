@@ -4,8 +4,8 @@ import { getAvailableSlots, formatAvailabilityMessage } from "../services/availa
 
 export const availabilityCheckerTool = new DynamicStructuredTool({
   name: "availability_checker",
-  description: `Úsala SIEMPRE que el usuario quiera saber qué horarios están disponibles para agendar.
-NUNCA respondas con horarios disponibles sin usar esta herramienta - siempre llamala primero.
+  description: `Úsala cuando el usuario pregunte explícitamente qué horarios están disponibles para agendar o cuando ya aceptó ver disponibilidad.
+No la uses para ofrecer horarios de forma automática si el usuario todavía no pidió agenda ni disponibilidad.
 - "check_next_days": Devuelve los próximos días con horarios disponibles (para cuando el usuario no tiene fecha específica)
 - "check_specific_day": Devuelve los horarios de un día específico (cuando el usuario ya dijo qué día)`,
   schema: z.object({

@@ -12,17 +12,25 @@ const TIMEZONE = 'America/Argentina/Buenos_Aires';
  */
 export const appointmentManagerTool = new DynamicStructuredTool({
     name: "appointment_manager",
-    description: `SISTEMA DE GESTIÓN DE REUNIONES - FLUJO OBLIGATORIO.
+    description: `SISTEMA DE GESTIÓN DE REUNIONES.
 
-  1. OFRECER REUNIÓN: Después de dar información de servicios/precios/catálogo, DEBES ejecutar check_next_days automáticamente para mostrar disponibilidad y ofrecer reunión. NO solo preguntes "¿quieres agendar?" - USÁ LA HERRAMIENTA.
+  USÁ ESTA HERRAMIENTA SOLO CUANDO HAYA INTENCIÓN CLARA DE AGENDA O DISPONIBILIDAD.
 
-  2. ANTES DE HABLAR: Si el usuario quiere una reunión, ejecuta SIEMPRE "check_next_days" para ver disponibilidad. No respondas con texto antes de saber qué hay disponible.
+  CUÁNDO USARLA:
+  1. Si el usuario pide explícitamente una reunión, cita, turno, llamada o demo.
+  2. Si el usuario pregunta por horarios disponibles o disponibilidad.
+  3. Si el usuario acepta ver horarios después de que se los ofrezcas en texto.
 
-  3. PRECONFIRMACIÓN OBLIGATORIA: Si el usuario ya eligió horario y dio Nombre/Email/Teléfono, PRIMERO debes mostrar un resumen con fecha, hora, nombre, email, teléfono y motivo, y pedir confirmación explícita o correcciones.
+  CUÁNDO NO USARLA:
+  1. No la uses solo porque el usuario preguntó por servicios, precios, catálogo o información general.
+  2. No la uses para ofrecer reunión de forma automática después de cada respuesta comercial.
+  3. No la uses si todavía estás en etapa de descubrimiento y el usuario no pidió agenda ni horarios.
 
-  4. AL CONFIRMAR: Solo cuando el usuario confirme explícitamente que esos datos son correctos, ejecuta "schedule" con confirmedByUser=true.
-
-  5. FINALIZAR: La acción "schedule" ES LA ÚNICA forma de registrar la cita. Si no ejecutas "schedule", la cita no existe.`,
+  REGLAS DE USO:
+  1. Si el usuario quiere una reunión pero no dijo fecha ni hora, ejecuta "check_next_days".
+  2. Si el usuario ya eligió horario y dio Nombre/Email/Teléfono, PRIMERO debes mostrar un resumen con fecha, hora, nombre, email, teléfono y motivo, y pedir confirmación explícita o correcciones.
+  3. Solo cuando el usuario confirme explícitamente que esos datos son correctos, ejecuta "schedule" con confirmedByUser=true.
+  4. La acción "schedule" ES LA ÚNICA forma de registrar la cita. Si no ejecutas "schedule", la cita no existe.`,
     schema: z.object({
         action: z.enum(["check_availability", "check_next_days", "schedule"]).default("check_next_days"),
         clientId: z.string(),
