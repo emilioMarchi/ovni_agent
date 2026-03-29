@@ -4,3 +4,5 @@ dist/
 agent-firebase-service.json
 *.log
 .DS_Store
+
+*.webm
