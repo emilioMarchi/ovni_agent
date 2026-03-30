@@ -4,7 +4,7 @@ import admin from "firebase-admin";
 import { getAvailableSlots } from "../services/availabilityService.js";
 import { sendMeetingRequestToAdmin, sendRequestReceivedToUser } from "../services/emailService.js";
 import { getSessionData } from "./context_manager.js";
-import { getTodayDateString, formatFriendlyDate } from "../utils/dateUtils.js";
+import { formatGroupedSlots, formatFriendlyDate, getTodayDateString, normalizeTimeInput } from "../utils/dateUtils.js";
 import { toDate, formatInTimeZone } from 'date-fns-tz';
 
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
@@ -79,6 +79,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
              return "⛔ ERROR: Faltan fecha y hora para agendar.";
         }
         const cleanDate = date.split('T')[0];
+        const normalizedTime = normalizeTimeInput(time);
         if (!finalUserInfo?.name || !finalUserInfo?.email) {
           return "⛔ ERROR CRÍTICO: Para agendar necesito nombre y email. Si ya los diste, por favor repítelos o asegúrate de que se hayan guardado.";
         }
@@ -89,7 +90,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
             "⚠️ ANTES DE CREAR LA SOLICITUD debes pedir confirmación explícita al usuario.",
             "Compartile este resumen y preguntale si está correcto o si quiere corregir algo:",
             `- Fecha: ${friendlyDate}`,
-            `- Hora: ${time}`,
+            `- Hora: ${normalizedTime}`,
             `- Nombre: ${finalUserInfo.name}`,
             `- Email: ${finalUserInfo.email}`,
             `- Teléfono: ${finalUserInfo.phone || "No proporcionado"}`,
@@ -98,9 +99,9 @@ export const appointmentManagerTool = new DynamicStructuredTool({
           ].join("\n");
         }
         const { availableSlots } = await getAvailableSlots(clientId, cleanDate);
-        if (!availableSlots.includes(time)) return `⛔ El horario ${time} ya no está disponible para el ${formatFriendlyDate(cleanDate)}. Por favor elige otro.`;
+        if (!availableSlots.includes(normalizedTime)) return `⛔ El horario ${normalizedTime} ya no está disponible para el ${formatFriendlyDate(cleanDate)}. Por favor elige otro.`;
         const meetingRef = await db.collection("meetings").add({
-          clientId, date: cleanDate, time, 
+          clientId, date: cleanDate, time: normalizedTime, 
           customerName: finalUserInfo.name, 
           customerEmail: finalUserInfo.email,
           customerPhone: finalUserInfo.phone || "No proporcionado",
@@ -116,7 +117,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
                     customerEmail: finalUserInfo.email!,
                     customerPhone: finalUserInfo.phone,
                     date: cleanDate, 
-                    time, 
+                    time: normalizedTime, 
                     topic: finalTopic, 
                     meetingId: meetingRef.id 
                 });
@@ -128,14 +129,14 @@ export const appointmentManagerTool = new DynamicStructuredTool({
             await sendRequestReceivedToUser(finalUserInfo.email!, {
                 customerName: finalUserInfo.name!,
                 date: cleanDate,
-                time,
+                time: normalizedTime,
                 topic: finalTopic
             });
         } catch(e) {
             console.error("❌ Error enviando email de recepción al usuario:", e);
         }
         const friendlyDate = formatFriendlyDate(cleanDate);
-        return `✅ SOLICITUD CREADA CON ÉXITO para el ${friendlyDate} a las ${time}hs. ID: ${meetingRef.id}. Avísale al usuario que está pendiente de confirmación por parte del administrador.`;
+            return `✅ SOLICITUD CREADA CON ÉXITO para el ${friendlyDate} a las ${normalizedTime}hs. ID: ${meetingRef.id}. Avísale al usuario que está pendiente de confirmación por parte del administrador.`;
       }
       if (effectiveAction === "check_next_days") {
         const daysAhead = 7;
@@ -148,7 +149,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
           const { availableSlots, businessHours } = await getAvailableSlots(clientId, isoDate);
           if (businessHours.enabled && availableSlots.length > 0) {
             const formattedDate = formatFriendlyDate(isoDate);
-            results.push(`📅 ${formattedDate}: ${availableSlots.join(", ")}`);
+            results.push(`📅 ${formattedDate}: ${formatGroupedSlots(availableSlots)}`);
           }
         }
         return results.length > 0 ? `Horarios disponibles:\n\n${results.join("\n")}` : "Lo siento, no tengo disponibilidad en los próximos días hábiles.";

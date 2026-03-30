@@ -1,5 +1,6 @@
 import admin from "firebase-admin";
 import { formatInTimeZone, toDate } from "date-fns-tz";
+import { formatFriendlyDate, formatGroupedSlots, getDayName } from "../utils/dateUtils.js";
 
 interface BusinessHours {
   enabled: boolean;
@@ -29,26 +30,17 @@ const DEFAULT_BUSINESS_HOURS: DayConfig = {
 
 const TIMEZONE = "America/Argentina/Buenos_Aires";
 
-function normalizeDayName(day: string): string {
-  return day
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
 function parseDateInTimezone(date: string): Date {
   return toDate(`${date}T12:00:00`, { timeZone: TIMEZONE });
 }
 
 function getDayNameForDate(date: string): string {
-  const dateObj = parseDateInTimezone(date);
-  const dayName = formatInTimeZone(dateObj, TIMEZONE, "EEEE");
-  return normalizeDayName(dayName);
+  return getDayName(date);
 }
 
 function formatDateForDisplay(date: string): string {
   const dateObj = parseDateInTimezone(date);
-  return formatInTimeZone(dateObj, TIMEZONE, "EEEE d 'de' MMMM 'de' yyyy");
+  return `${formatFriendlyDate(date)} de ${formatInTimeZone(dateObj, TIMEZONE, "yyyy")}`;
 }
 
 function generateTimeSlots(start: string, end: string): string[] {
@@ -146,10 +138,12 @@ export async function formatAvailabilityMessage(
     return `No hay horarios disponibles para el ${formattedDate}. Todos los turnos están ocupados.`;
   }
 
+  const groupedAvailability = formatGroupedSlots(availableSlots);
+
   return `Horarios disponibles para el ${formattedDate}:
 ${availableRanges.join(", ")}
 
-Turnos libres: ${availableSlots.join(", ")}
+Turnos libres: ${groupedAvailability}
 
 (${bookedSlots.length} turnos ya reservados)`;
 }

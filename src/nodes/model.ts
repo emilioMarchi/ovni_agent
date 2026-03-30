@@ -1,11 +1,24 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { SystemMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { AgentStateType } from "../state/state.js";
 import { tools } from "../tools/index.js";
 import { SystemInstructionBuilder } from "../utils/SystemInstructionBuilder.js";
 
 export async function modelNode(state: AgentStateType) {
   const { messages, functions, skills } = state;
+  const lastMessage = messages[messages.length - 1];
+
+  if (lastMessage instanceof ToolMessage) {
+    const toolName = (lastMessage as any).name || "";
+    const toolContent = typeof lastMessage.content === "string" ? lastMessage.content : String(lastMessage.content || "");
+
+    if (toolName === "availability_checker" && toolContent.trim()) {
+      console.log(`💬 [MODEL] Respuesta directa desde tool ${toolName}.`);
+      return {
+        messages: [new AIMessage(toolContent)],
+      };
+    }
+  }
 
   const legacyToNewMapping: Record<string, string> = {
     "search_knowledge": "knowledge_retriever",
@@ -15,6 +28,8 @@ export async function modelNode(state: AgentStateType) {
   };
 
   const allowedTools = tools.filter(tool => {
+    if (tool.name === "context_manager") return true;
+
     if (functions.includes(tool.name)) return true;
     
     const isLegacyAllowed = Object.entries(legacyToNewMapping).some(([legacyName, actualName]) => 

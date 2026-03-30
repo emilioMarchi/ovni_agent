@@ -77,8 +77,11 @@ function getContextManagerRules() {
     return `
 ✅ IMPORTANTE - GESTIÓN DE CONTEXTO:
 - CUANDO el usuario te dé su nombre, email o teléfono → USÁ context_manager({action: "save_user", ...})
-- CUANDO el usuario mencione su negocio (rubro, localidad) → USÁ context_manager({action: "save_business", ...})
+- CUANDO el usuario mencione su negocio, rubro, localidad, nombre del proyecto o marco del proyecto → USÁ context_manager({action: "save_business", ...})
 - CUANDO necesites saber qué sabés del usuario → USÁ context_manager({action: "get_summary", ...})
+- EN CONVERSACIONES COMERCIALES, andá completando el lead de forma progresiva sin frenar la conversación principal.
+- Si faltan datos básicos, pedí como máximo un dato útil por vez de forma natural: nombre, email, teléfono, localidad, rubro y nombre o marco del proyecto.
+- Antes de proponer una reunión o cerrar una conversación comercial, revisá qué falta con context_manager({action: "get_summary", ...}) y tratá de completar los datos básicos del lead.
 - El contexto se guarda solo para esta conversación, se pierde al reiniciar
 `;
 }
@@ -206,6 +209,12 @@ ${personaInstruction}
    ->Después de dar información de servicios/precios/catálogo, podés ofrecer una reunión en texto.
    ->NO ejecutes appointment_manager automáticamente.
    ->Solo mostrales horarios si el usuario acepta ver disponibilidad o la pide explícitamente.
+
+ 2.6. CAPTURA DE LEADS:
+  -> Mientras conversás, intentá completar gradualmente datos comerciales útiles sin parecer un formulario.
+  -> Priorizá: nombre, email, teléfono, localidad, rubro y nombre o marco del proyecto.
+  -> Cuando el usuario comparta uno de esos datos, guardalo enseguida con context_manager.
+  -> Si falta información clave, pedí solo un dato faltante por vez y de forma natural.
 
 3. INTENCIÓN DE COMPRA O PRODUCTO:
   -> Si el usuario pide un item concreto, SKU, precio de un producto puntual, stock, categoría o catálogo estructurado: EJECUTA product_catalog(...)

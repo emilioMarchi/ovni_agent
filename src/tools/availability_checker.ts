@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { getAvailableSlots, formatAvailabilityMessage } from "../services/availabilityService.js";
-import { addDaysToDateString, formatFriendlyDate, getTodayDateString } from "../utils/dateUtils.js";
+import { addDaysToDateString, formatFriendlyDate, formatGroupedSlots, getTodayDateString } from "../utils/dateUtils.js";
 
 export const availabilityCheckerTool = new DynamicStructuredTool({
   name: "availability_checker",
@@ -27,7 +27,7 @@ No la uses para ofrecer horarios de forma automática si el usuario todavía no 
           
           if (businessHours.enabled && availableSlots.length > 0) {
             const formattedDate = formatFriendlyDate(isoDate);
-            results.push(`📅 ${formattedDate}: ${availableSlots.join(", ")}`);
+            results.push(`📅 ${formattedDate}: ${formatGroupedSlots(availableSlots)}`);
           }
         }
         
