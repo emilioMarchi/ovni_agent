@@ -31,6 +31,16 @@ Este documento detalla el progreso y la planificación del Agente OVNI v2 (Matri
 - [x] **Estado**: Implementado status `processing` -> `ready` con feedback visual en el panel.
 - [x] **Puntería Pro**: Query Expansion con Gemini 2.5 Flash para búsquedas ultra-precisas.
 
+### 9.1: Robustez de Ingesta para Documentos Grandes (30/03/2026)
+- [x] **Reparación de JSON**: Parser resiliente (`repairAndParseJSON`) que intenta cerrar JSONs truncados de Gemini y extrae objetos parciales por regex como fallback.
+- [x] **Retry Automático**: Cada lote de Gemini que falla se reintenta una vez. Delay inteligente: 15s en rate limit (429), 3s en otros errores.
+- [x] **Delay entre Lotes**: 2s de pausa entre llamadas a Gemini para evitar 429 Too Many Requests.
+- [x] **Truncado de Metadata Pinecone**: `text` en metadata limitado a 8KB para respetar el límite de 40KB/vector de Pinecone. El texto completo queda en Firestore.
+- [x] **Reporte de Procesamiento**: Al finalizar, se genera y persiste en Firestore un `processingReport` con: lotes OK/retry/fallidos, desglose por lote (rango de chars, fragmentos), preview del contenido perdido.
+- [x] **Cancelación de Procesamiento**: Endpoint `POST /api/documents/:id/cancel` con AbortSignal para interrumpir el loop de lotes. Limpia datos parciales de Firestore y Pinecone.
+- [x] **UI de Progreso Mejorada**: Spinner animado, barra de progreso con pulso, botón de cancelar, y polling optimizado (solo refresca lista al terminar).
+- [x] **Logs Limpios**: Eliminados logs repetitivos de polling GET en el servidor.
+
 ---
 
 ## ✅ Fase 10: Historial y Clasificación de Sesiones - COMPLETADO
@@ -59,7 +69,7 @@ Este documento detalla el progreso y la planificación del Agente OVNI v2 (Matri
 ---
 
 ## 🕒 Futuro: Optimizaciones
-- [ ] **Fragmentación Semántica**: Usar IA para dividir documentos en secciones lógicas en lugar de cortes por caracteres/oraciones.
+- [x] **Fragmentación Semántica**: Gemini 2.5 Flash divide documentos en secciones lógicas (artículos, cláusulas, párrafos temáticos) en lotes de 100K chars.
 - [ ] **Builder de Workflows**: Configurar flujos de estados por agente desde Firestore.
 - [ ] **Templates**: Plantillas preconfiguradas por industria.
 - [ ] **Analytics**: Panel de uso de tokens y efectividad de respuestas.

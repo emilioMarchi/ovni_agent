@@ -933,7 +933,10 @@
           <div id="doc-processing-panel" style="display:none;margin-top:16px"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-doc')">Cancelar</button>
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-doc')" id="btn-close-doc">Cancelar</button>
+          <button type="button" class="btn btn-secondary" id="btn-cancel-doc" style="display:none;background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.2)" onclick="cancelDocumentProcessing()">
+            Cancelar Procesamiento
+          </button>
           <button type="submit" class="btn btn-primary" id="btn-submit-doc">Subir y Procesar</button>
         </div>
       </form>
@@ -1192,29 +1195,52 @@
       const progress = Math.max(0, Math.min(100, Number(doc.processingProgress || 0)));
       const stage = formatDocumentStage(doc.processingStage);
       const logs = Array.isArray(doc.processingLogs) ? doc.processingLogs : [];
+      const isActive = status === 'processing';
       const statusMeta = {
-        ready: { color: 'var(--green)', background: 'rgba(34, 197, 94, 0.08)', label: 'Listo' },
-        error: { color: 'var(--red)', background: 'rgba(239, 68, 68, 0.08)', label: 'Error' },
-        processing: { color: 'var(--orange)', background: 'rgba(249, 115, 22, 0.08)', label: 'Procesando' },
-      }[status] || { color: 'var(--orange)', background: 'rgba(249, 115, 22, 0.08)', label: status };
+        ready: { color: 'var(--green)', background: 'rgba(34, 197, 94, 0.08)', label: 'Listo', icon: '✅' },
+        error: { color: 'var(--red)', background: 'rgba(239, 68, 68, 0.08)', label: 'Error', icon: '❌' },
+        processing: { color: 'var(--orange)', background: 'rgba(249, 115, 22, 0.08)', label: 'Procesando', icon: '' },
+        cancelled: { color: 'var(--text-muted)', background: 'rgba(0,0,0,0.04)', label: 'Cancelado', icon: '🚫' },
+      }[status] || { color: 'var(--orange)', background: 'rgba(249, 115, 22, 0.08)', label: status, icon: '' };
+
+      // Show/hide cancel button
+      const cancelBtn = document.getElementById('btn-cancel-doc');
+      const closeBtn = document.getElementById('btn-close-doc');
+      if (cancelBtn) cancelBtn.style.display = isActive ? '' : 'none';
+      if (closeBtn) closeBtn.style.display = isActive ? 'none' : '';
+
+      const spinnerHTML = isActive ? `
+        <div style="width:28px;height:28px;border:3px solid rgba(249,115,22,0.2);border-top-color:var(--orange);border-radius:50%;animation:doc-spin 0.8s linear infinite"></div>
+      ` : `<span style="font-size:22px">${statusMeta.icon}</span>`;
+
+      const progressBarHTML = `
+        <div style="height:10px;border-radius:999px;background:rgba(0,0,0,0.08);overflow:hidden;position:relative">
+          <div style="height:100%;width:${progress}%;background:${statusMeta.color};transition:width 0.4s ease;border-radius:999px;${isActive ? 'animation:doc-pulse 1.5s ease-in-out infinite' : ''}"></div>
+        </div>
+      `;
 
       panel.style.display = 'block';
       panel.innerHTML = `
+        <style>
+          @keyframes doc-spin { to { transform: rotate(360deg) } }
+          @keyframes doc-pulse { 0%,100% { opacity:1 } 50% { opacity:0.6 } }
+        </style>
         <div style="border:1px solid ${statusMeta.color}33;border-radius:10px;padding:14px;background:${statusMeta.background};display:flex;flex-direction:column;gap:12px">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-            <div>
-              <div style="font-size:12px;font-weight:700;color:${statusMeta.color};text-transform:uppercase;letter-spacing:0.08em">${escapeHtml(statusMeta.label)}</div>
-              <div style="font-size:14px;font-weight:600;color:var(--text-primary)">${escapeHtml(doc.filename || 'Documento')}</div>
-              <div style="font-size:12px;color:var(--text-secondary)">${escapeHtml(stage)}</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              ${spinnerHTML}
+              <div>
+                <div style="font-size:12px;font-weight:700;color:${statusMeta.color};text-transform:uppercase;letter-spacing:0.08em">${escapeHtml(statusMeta.label)}</div>
+                <div style="font-size:14px;font-weight:600;color:var(--text-primary)">${escapeHtml(doc.filename || 'Documento')}</div>
+                <div style="font-size:12px;color:var(--text-secondary)">${escapeHtml(stage)}</div>
+              </div>
             </div>
-            <div style="font-size:18px;font-weight:700;color:${statusMeta.color}">${progress}%</div>
+            <div style="font-size:22px;font-weight:700;color:${statusMeta.color}">${progress}%</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px">
-            <div style="height:8px;border-radius:999px;background:rgba(0,0,0,0.08);overflow:hidden">
-              <div style="height:100%;width:${progress}%;background:${statusMeta.color};transition:width 0.25s ease"></div>
-            </div>
+            ${progressBarHTML}
             <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--text-muted)">
-              <span>${escapeHtml(doc.partsCount ? `${doc.partsCount} fragmentos detectados` : 'Procesando contenido...')}</span>
+              <span>${escapeHtml(doc.partsCount ? `${doc.partsCount} fragmentos detectados` : isActive ? 'Procesando contenido...' : '')}</span>
               <span>${escapeHtml(doc.updatedAt ? new Date(doc.updatedAt).toLocaleTimeString() : '')}</span>
             </div>
           </div>
@@ -1241,6 +1267,31 @@
       }
       activeDocumentUploadId = null;
       setDocumentSubmitState(false, 'Subir y Procesar');
+      const cancelBtn = document.getElementById('btn-cancel-doc');
+      const closeBtn = document.getElementById('btn-close-doc');
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      if (closeBtn) closeBtn.style.display = '';
+    }
+
+    async function cancelDocumentProcessing() {
+      if (!activeDocumentUploadId) return;
+      const docId = activeDocumentUploadId;
+      
+      const cancelBtn = document.getElementById('btn-cancel-doc');
+      if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.textContent = 'Cancelando...'; }
+
+      try {
+        await apiFetch(`/api/documents/${docId}/cancel`, { method: 'POST' });
+        stopDocumentStatusPolling();
+        resetDocumentProcessingPanel();
+        document.getElementById('form-doc').reset();
+        if (currentAdminId) loadDocuments(currentAdminId);
+        showToast('Procesamiento cancelado', 'info');
+      } catch (e) {
+        showToast(e.message || 'Error al cancelar', 'error');
+      } finally {
+        if (cancelBtn) { cancelBtn.disabled = false; cancelBtn.textContent = 'Cancelar Procesamiento'; }
+      }
     }
 
     async function refreshActiveDocumentStatus() {
@@ -1251,18 +1302,16 @@
         const doc = data.data;
         renderDocumentProcessingPanel(doc);
 
-        if (currentAdminId) {
-          loadDocuments(currentAdminId);
-        }
-
         if (doc.status === 'ready') {
           stopDocumentStatusPolling();
+          if (currentAdminId) loadDocuments(currentAdminId);
           document.getElementById('form-doc').reset();
           showToast('Documento procesado e indexado correctamente', 'success');
         }
 
         if (doc.status === 'error') {
           stopDocumentStatusPolling();
+          if (currentAdminId) loadDocuments(currentAdminId);
           showToast(doc.error || 'Error al procesar archivo', 'error');
         }
       } catch (e) {

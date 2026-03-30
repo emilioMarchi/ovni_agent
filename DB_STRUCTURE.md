@@ -120,8 +120,13 @@ Metadata de documentos de conocimiento ingestados. Doc ID: auto-generado por Fir
 | `filename` | string | Nombre original del archivo |
 | `description` | string | Descripción generada por AI |
 | `keywords` | array\<string\> | Keywords extraídas por AI |
-| `status` | string | Estado (ej: "processed") |
+| `status` | string | `processing` \| `processed` \| `ready` \| `error` |
+| `processingStage` | string | Etapa actual: `upload_complete` \| `extracting` \| `analyzing` \| `structuring` \| `catalog_index` \| `fragment_index` \| `finalizing` \| `completed` \| `failed` |
+| `processingProgress` | number | Progreso 0-100 |
+| `processingLogs` | array | `[{ at: ISO string, message: string }]` — log de eventos |
+| `processingReport` | object | Reporte final: `{ totalBatches, successBatches, retryBatches, failedBatches, failedDetails, batchBreakdown, totalFragments, totalChars, completeness }` |
 | `partsCount` | number | Cantidad de fragmentos generados |
+| `error` | string \| null | Mensaje de error si falló |
 | `createdAt` | string | ISO timestamp |
 | `updatedAt` | string | ISO timestamp |
 

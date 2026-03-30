@@ -25,6 +25,7 @@ type IngestDocumentParams = {
   docId: string;
   filename: string;
   description?: string;
+  signal?: AbortSignal;
   onProgress?: (update: { stage: string; progress: number; message: string }) => Promise<void> | void;
 };
 
@@ -58,10 +59,63 @@ function extractMessageText(content: unknown): string {
     .join("\n");
 }
 
-export async function processAndIngestDocument({ filePath, clientId, docId, filename, description, onProgress }: IngestDocumentParams) {
+function repairAndParseJSON(raw: string): DocumentPart[] {
+  // Intento directo
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch {}
+
+  // Intentar cerrar el JSON truncado
+  let repaired = raw;
+
+  // Si termina con una string sin cerrar, cerrarla
+  const lastQuote = repaired.lastIndexOf('"');
+  const afterLastQuote = repaired.slice(lastQuote + 1).trim();
+  if (afterLastQuote === '' || afterLastQuote === ',') {
+    repaired = repaired.slice(0, lastQuote + 1);
+  }
+
+  // Intentar cerrar objetos/arrays abiertos
+  const closers = ['}"]', '}]', '"}]', '"]}]', ']'];
+  for (const closer of closers) {
+    try {
+      const candidate = repaired.trimEnd().replace(/,\s*$/, '') + closer;
+      const parsed = JSON.parse(candidate);
+      console.log(`🔧 JSON reparado con closer: ${closer}`);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {}
+  }
+
+  // Último recurso: extraer todos los objetos completos que se puedan parsear
+  const objects: DocumentPart[] = [];
+  const regex = /\{\s*"text"\s*:\s*"[\s\S]*?"\s*,\s*"summary"\s*:\s*"[\s\S]*?"\s*,\s*"keywords"\s*:\s*\[[^\]]*\]\s*\}/g;
+  let match;
+  while ((match = regex.exec(raw)) !== null) {
+    try {
+      objects.push(JSON.parse(match[0]));
+    } catch {}
+  }
+
+  if (objects.length > 0) {
+    console.log(`🔧 JSON rescatado parcialmente: ${objects.length} objetos extraídos por regex`);
+    return objects;
+  }
+
+  throw new Error(`JSON irrecuperable (${raw.length} chars). Inicio: ${raw.slice(0, 200)}...`);
+}
+
+export async function processAndIngestDocument({ filePath, clientId, docId, filename, description, signal, onProgress }: IngestDocumentParams) {
   const db = admin.firestore();
 
+  const checkAbort = () => {
+    if (signal?.aborted) {
+      throw new Error("CANCELLED");
+    }
+  };
+
   const reportProgress = async (stage: string, progress: number, message: string) => {
+    checkAbort();
     if (onProgress) {
       await onProgress({ stage, progress, message });
     }
@@ -83,8 +137,12 @@ export async function processAndIngestDocument({ filePath, clientId, docId, file
   }
 
   let allParts: DocumentPart[] = [];
+  const batchResults: { batch: number; status: "ok" | "retry_ok" | "failed"; parts: number; error?: string; charRange?: string; contentPreview?: string }[] = [];
   
   for (let i = 0; i < textBatches.length; i++) {
+    checkAbort();
+    // Delay entre lotes para evitar rate limits de Gemini
+    if (i > 0) await new Promise(r => setTimeout(r, 2000));
     const batch = textBatches[i];
     await reportProgress("analyzing", 28 + Math.round((i / textBatches.length) * 15), `Analizando lote ${i + 1} de ${textBatches.length}...`);
     
@@ -106,18 +164,80 @@ Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`
       const result = await chatModel.invoke(prompt);
       const content = extractMessageText(result.content);
       const cleaned = content.replace(/```json|```/g, "").trim();
-      const batchParts: DocumentPart[] = JSON.parse(cleaned);
+      const batchParts: DocumentPart[] = repairAndParseJSON(cleaned);
       allParts = allParts.concat(batchParts);
-    } catch (e) {
-      console.error(`Error procesando lote ${i} de ${filename}:`, e);
+      batchResults.push({ batch: i + 1, status: "ok", parts: batchParts.length, charRange: `${i * BATCH_SIZE}-${Math.min((i + 1) * BATCH_SIZE, text.length)}` });
+      console.log(`✅ Lote ${i + 1}/${textBatches.length} de ${filename}: ${batchParts.length} fragmentos`);
+    } catch (e: any) {
+      console.error(`❌ Error procesando lote ${i + 1}/${textBatches.length} de ${filename}:`, e?.message || e);
+      await reportProgress("analyzing", 28 + Math.round((i / textBatches.length) * 15), `⚠️ Lote ${i + 1} falló, esperando antes de reintentar...`);
+      // Esperar más en caso de rate limit
+      const isRateLimit = e?.message?.includes('429') || e?.message?.includes('Too Many Requests') || e?.message?.includes('spending');
+      await new Promise(r => setTimeout(r, isRateLimit ? 15000 : 3000));
+      // Retry una vez con el mismo lote
+      try {
+        const retryResult = await chatModel.invoke(prompt);
+        const retryContent = extractMessageText(retryResult.content);
+        const retryCleaned = retryContent.replace(/```json|```/g, "").trim();
+        const retryParts: DocumentPart[] = repairAndParseJSON(retryCleaned);
+        allParts = allParts.concat(retryParts);
+        batchResults.push({ batch: i + 1, status: "retry_ok", parts: retryParts.length, charRange: `${i * BATCH_SIZE}-${Math.min((i + 1) * BATCH_SIZE, text.length)}` });
+        console.log(`✅ Lote ${i + 1}/${textBatches.length} (retry) de ${filename}: ${retryParts.length} fragmentos`);
+      } catch (retryError: any) {
+        const failStart = i * BATCH_SIZE;
+        const failEnd = Math.min((i + 1) * BATCH_SIZE, text.length);
+        const preview = textBatches[i].slice(0, 300).replace(/\n/g, ' ').trim();
+        batchResults.push({ batch: i + 1, status: "failed", parts: 0, error: retryError?.message || "Error desconocido", charRange: `${failStart}-${failEnd}`, contentPreview: preview });
+        console.error(`❌ Lote ${i + 1}/${textBatches.length} falló 2 veces, saltando. Rango chars: ${failStart}-${failEnd}`);
+        console.error(`   Preview contenido perdido: ${preview}...`);
+      }
     }
+  }
+
+  // Generar reporte de procesamiento
+  const successBatches = batchResults.filter(b => b.status === "ok").length;
+  const retryBatches = batchResults.filter(b => b.status === "retry_ok").length;
+  const failedBatches = batchResults.filter(b => b.status === "failed");
+  const totalBatches = textBatches.length;
+
+  const processingReport = {
+    totalBatches,
+    successBatches,
+    retryBatches,
+    failedBatches: failedBatches.length,
+    failedDetails: failedBatches.map(b => ({ batch: b.batch, error: b.error, charRange: b.charRange, contentPreview: b.contentPreview })),
+    batchBreakdown: batchResults.map(b => ({ batch: b.batch, status: b.status, parts: b.parts, charRange: b.charRange })),
+    totalFragments: allParts.length,
+    totalChars: text.length,
+    completeness: `${Math.round(((totalBatches - failedBatches.length) / totalBatches) * 100)}%`,
+  };
+
+  console.log(`\n📊 REPORTE DE PROCESAMIENTO: ${filename}`);
+  console.log(`   Lotes: ${successBatches} OK | ${retryBatches} reintentos OK | ${failedBatches.length} fallidos | ${totalBatches} total`);
+  console.log(`   Fragmentos extraídos: ${allParts.length}`);
+  console.log(`   Completitud: ${processingReport.completeness}`);
+  if (failedBatches.length > 0) {
+    for (const fb of failedBatches) {
+      console.log(`   ⚠️ Lote #${fb.batch} PERDIDO | Chars ${fb.charRange} | Error: ${fb.error}`);
+      console.log(`     Contenido: ${fb.contentPreview}...`);
+    }
+  }
+  // Log resumen por lote
+  console.log(`   Detalle por lote:`);
+  for (const b of batchResults) {
+    const icon = b.status === "ok" ? "✅" : b.status === "retry_ok" ? "🔄" : "❌";
+    console.log(`     ${icon} Lote #${b.batch}: ${b.parts} fragmentos | chars ${b.charRange}`);
   }
 
   if (allParts.length === 0) {
     throw new Error("No se pudo extraer ninguna parte relevante del documento.");
   }
 
-  await reportProgress("structuring", 46, `Gemini devolvió un total de ${allParts.length} fragmentos. Guardando metadata...`);
+  const reportSummary = failedBatches.length > 0
+    ? `${allParts.length} fragmentos (${processingReport.completeness} completo, ${failedBatches.length} lote(s) fallido(s): ${failedBatches.map(b => `#${b.batch}`).join(", ")})`
+    : `${allParts.length} fragmentos (100% completo)`;
+
+  await reportProgress("structuring", 46, `Análisis listo: ${reportSummary}. Guardando metadata...`);
 
   // Generar keywords y descripción general para el documento
   const allKeywords = Array.from(new Set(allParts.flatMap((part) => Array.isArray(part.keywords) ? part.keywords : [])));
@@ -134,12 +254,14 @@ Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`
     updatedAt: new Date().toISOString(),
     status: "processed",
     partsCount: allParts.length,
+    processingReport,
   }, { merge: true });
 
   const index = pinecone.index("chatbot-knowledge");
   const namespace = `client_${clientId}`;
 
   // 4. Vectorizar la descripción del documento en document_catalog
+  checkAbort();
   await reportProgress("catalog_index", 58, "Indexando catálogo documental en Pinecone...");
   const catalogText = `${filename}: ${finalDescription}. Keywords: ${allKeywords.join(", ")}`;
   const catalogVector = await embeddings.embedQuery(catalogText);
@@ -193,6 +315,8 @@ Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`
   }
 
   // Pinecone upsert en lotes (máx 100 vectores por upsert)
+  // Pinecone tiene límite de 40KB por vector metadata → truncar text
+  const PINECONE_META_TEXT_LIMIT = 8000; // ~8KB para text, deja margen para otros campos
   const PINECONE_BATCH_LIMIT = 100;
   for (let batchStart = 0; batchStart < allParts.length; batchStart += PINECONE_BATCH_LIMIT) {
     const batchEnd = Math.min(batchStart + PINECONE_BATCH_LIMIT, allParts.length);
@@ -201,6 +325,9 @@ Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`
     for (let i = batchStart; i < batchEnd; i++) {
       const part = allParts[i];
       const partId = `part_${docId}_${i}`;
+      const metaText = part.text.length > PINECONE_META_TEXT_LIMIT
+        ? part.text.slice(0, PINECONE_META_TEXT_LIMIT) + '...'
+        : part.text;
       pineconeRecords.push({
         id: partId,
         values: vectors[i],
@@ -208,9 +335,9 @@ Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`
           docId,
           clientId,
           filename,
-          description: part.summary || "",
-          text: part.text,
-          keywords: (part.keywords || []).join(", "),
+          description: (part.summary || "").slice(0, 500),
+          text: metaText,
+          keywords: (part.keywords || []).join(", ").slice(0, 500),
           idx: i,
         },
       });
@@ -222,7 +349,7 @@ Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`
     await reportProgress("fragment_index", fragmentProgress, `Lote ${Math.ceil(batchEnd / PINECONE_BATCH_LIMIT)} indexado en Pinecone`);
   }
 
-  await reportProgress("finalizing", 98, "Finalizando indexación y persistencia...");
+  await reportProgress("finalizing", 98, `Finalizando: ${reportSummary}`);
   console.log(`✅ Documento ingestado: ${filename} (${allParts.length} partes) → namespace: ${namespace}, document_catalog`);
-  return { docId, partsCount: allParts.length };
+  return { docId, partsCount: allParts.length, processingReport };
 }
