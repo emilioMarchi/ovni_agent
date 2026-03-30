@@ -6,7 +6,8 @@ import type { PendingWrite } from "@langchain/langgraph-checkpoint";
 /**
  * Checkpointer personalizado para Firestore.
  * Implementa la persistencia de hilos (threads) de LangGraph directamente en tu DB.
- * Esto asegura que el Nivel 2 (Sesión/Historial) sea persistente entre reinicios.
+ * Usa serde (JsonPlusSerializer) heredado de BaseCheckpointSaver para
+ * serializar/deserializar correctamente los mensajes de LangChain (AIMessage, ToolMessage, etc.)
  */
 export class FirestoreCheckpointer extends BaseCheckpointSaver {
   private db: admin.firestore.Firestore;
@@ -32,10 +33,25 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
     if (!doc.exists) return undefined;
 
     const data = doc.data()!;
+
+    let checkpoint: Checkpoint;
+    let metadata: CheckpointMetadata;
+
+    if (data.serdeType) {
+      // Formato nuevo: serializado con serde (JsonPlusSerializer)
+      checkpoint = await this.serde.loadsTyped(data.serdeType, data.checkpoint) as Checkpoint;
+      metadata = await this.serde.loadsTyped(data.metadataSerdeType || "json", data.metadata) as CheckpointMetadata;
+    } else {
+      // Formato legacy: JSON puro — destruir y dejar que se re-cree limpio
+      // No intentamos reconstruir messages viejos porque los tipos se pierden
+      console.warn(`⚠️ [CHECKPOINT] Formato legacy detectado para thread ${thread_id}, descartando.`);
+      return undefined;
+    }
+
     return {
       config,
-      checkpoint: JSON.parse(data.checkpoint) as Checkpoint,
-      metadata: JSON.parse(data.metadata || "{}") as CheckpointMetadata,
+      checkpoint,
+      metadata,
     };
   }
 
@@ -47,10 +63,15 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
 
     for (const doc of snapshot.docs) {
       const data = doc.data();
+      if (!data.serdeType) continue; // Saltar legacy
+
+      const checkpoint = await this.serde.loadsTyped(data.serdeType, data.checkpoint) as Checkpoint;
+      const metadata = await this.serde.loadsTyped(data.metadataSerdeType || "json", data.metadata) as CheckpointMetadata;
+
       yield {
         config: { configurable: { thread_id: data.thread_id } },
-        checkpoint: JSON.parse(data.checkpoint),
-        metadata: JSON.parse(data.metadata || "{}"),
+        checkpoint,
+        metadata,
       };
     }
   }
@@ -62,11 +83,24 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
     _newVersions: Record<string, string | number>
   ): Promise<RunnableConfig> {
     const thread_id = this.getThreadId(config);
-    
+
+    const [serdeType, serializedCheckpoint] = this.serde.dumpsTyped(checkpoint);
+    const [metadataSerdeType, serializedMetadata] = this.serde.dumpsTyped(metadata);
+
+    // Convertir Uint8Array a string para Firestore
+    const checkpointStr = typeof serializedCheckpoint === "string"
+      ? serializedCheckpoint
+      : new TextDecoder().decode(serializedCheckpoint);
+    const metadataStr = typeof serializedMetadata === "string"
+      ? serializedMetadata
+      : new TextDecoder().decode(serializedMetadata);
+
     await this.db.collection(this.collectionName).doc(thread_id).set({
       thread_id,
-      checkpoint: JSON.stringify(checkpoint),
-      metadata: JSON.stringify(metadata),
+      serdeType,
+      checkpoint: checkpointStr,
+      metadataSerdeType,
+      metadata: metadataStr,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 

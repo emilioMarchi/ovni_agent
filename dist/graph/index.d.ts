@@ -61,7 +61,7 @@ export declare const graph: import("@langchain/langgraph").CompiledStateGraph<im
     contextQuery: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     fastPath: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
     messages: import("@langchain/langgraph").BinaryOperatorAggregate<import("@langchain/core/messages").BaseMessage[], import("@langchain/langgraph").Messages>;
-}>, "history_retriever" | "__start__" | "config" | "speech_to_text" | "agent" | "tools" | "text_to_speech" | "save_history", {
+}>, "history_retriever" | "config" | "__start__" | "speech_to_text" | "agent" | "tools" | "text_to_speech" | "save_history", {
     clientId: import("@langchain/langgraph").LastValue<string>;
     agentId: import("@langchain/langgraph").LastValue<string>;
     agentName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;

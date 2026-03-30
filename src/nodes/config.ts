@@ -6,6 +6,18 @@ const AGENT_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 const agentConfigCache = new Map<string, { value: Record<string, unknown>; expiresAt: number }>();
 
 /**
+ * Invalida el cache de configuración de un agente.
+ * Llamar cuando se actualice el agente desde la API.
+ */
+export function invalidateAgentConfigCache(agentId: string) {
+  agentConfigCache.delete(agentId);
+}
+
+export function invalidateAllAgentConfigCache() {
+  agentConfigCache.clear();
+}
+
+/**
  * Nodo de Configuración: Hidrata el estado inicial con la información del agente
  * desde Firestore (skills, knowledgeDocs, instructions).
  */

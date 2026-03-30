@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import admin from "../firebase.js";
 import { v4 as uuidv4 } from "uuid";
 import { masterAuth, AuthenticatedRequest } from "../middleware/auth.js";
+import { invalidateAgentConfigCache } from "../../nodes/config.js";
 
 const router = Router();
 const db = admin.firestore();
@@ -128,6 +129,7 @@ router.put("/:id", async (req: Request, res: Response) => {
     }
 
     await db.collection("agents").doc(req.params.id).update(updates);
+    invalidateAgentConfigCache(req.params.id);
 
     const doc = await db.collection("agents").doc(req.params.id).get();
     res.json({ success: true, data: { id: doc.id, ...doc.data() } });

@@ -74,23 +74,54 @@ export async function processAndIngestDocument({ filePath, clientId, docId, file
 
   await reportProgress("analyzing", 28, `Contenido extraído (${text.length} caracteres). Analizando con Gemini...`);
 
-  // 2. Pedir a Gemini que divida en párrafos relevantes y genere keywords
-  const prompt = `Divide el siguiente texto en fragmentos o párrafos relevantes para búsqueda semántica. Para cada fragmento, genera un resumen breve y una lista de 3-7 keywords. Devuelve SOLO un JSON válido con la estructura: [{text, summary, keywords:[]}]. Texto:\n${text.slice(0, 12000)}`;
-  const result = await chatModel.invoke(prompt);
-  const content = extractMessageText(result.content);
-  const cleaned = content.replace(/```json|```/g, "").trim();
-  let parts: DocumentPart[] = [];
-  try {
-    parts = JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error("Error parsing Gemini output: " + e);
+  // 2. Pedir a Gemini que agrupe en secciones temáticas
+  // Gemini 2.5 Flash soporta ~1M tokens (~4M chars). Agrupamos en lotes grandes para minimizar llamadas.
+  const BATCH_SIZE = 100000; // ~100K chars por llamada Gemini (conservador)
+  const textBatches: string[] = [];
+  for (let i = 0; i < text.length; i += BATCH_SIZE) {
+    textBatches.push(text.slice(i, i + BATCH_SIZE));
   }
 
-  await reportProgress("structuring", 46, `Gemini devolvió ${parts.length} fragmentos. Guardando metadata...`);
+  let allParts: DocumentPart[] = [];
+  
+  for (let i = 0; i < textBatches.length; i++) {
+    const batch = textBatches[i];
+    await reportProgress("analyzing", 28 + Math.round((i / textBatches.length) * 15), `Analizando lote ${i + 1} de ${textBatches.length}...`);
+    
+    const prompt = `Sos un experto en organización de documentos para búsqueda semántica (RAG).
+
+Tu tarea es dividir el siguiente texto en fragmentos relevantes para búsqueda semántica. Cada fragmento debe ser una unidad lógica del contenido (un artículo, una cláusula, un párrafo temático, una sección, etc.).
+
+REGLAS:
+- Fragmentá de forma GRANULAR: cada artículo, cláusula o párrafo temático debe ser un fragmento separado.
+- Si un artículo o sección es muy corto (1-2 líneas), podés agruparlo con el siguiente relacionado.
+- El "text" debe contener el texto ORIGINAL completo del fragmento (no lo resumas ni lo recortes).
+- El "summary" debe describir de qué trata el fragmento en 1-2 oraciones.
+- Las "keywords" deben ser 3-7 términos clave para encontrar este fragmento.
+- Generá TODOS los fragmentos que el texto requiera, sin límite artificial.
+
+Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`;
+    
+    try {
+      const result = await chatModel.invoke(prompt);
+      const content = extractMessageText(result.content);
+      const cleaned = content.replace(/```json|```/g, "").trim();
+      const batchParts: DocumentPart[] = JSON.parse(cleaned);
+      allParts = allParts.concat(batchParts);
+    } catch (e) {
+      console.error(`Error procesando lote ${i} de ${filename}:`, e);
+    }
+  }
+
+  if (allParts.length === 0) {
+    throw new Error("No se pudo extraer ninguna parte relevante del documento.");
+  }
+
+  await reportProgress("structuring", 46, `Gemini devolvió un total de ${allParts.length} fragmentos. Guardando metadata...`);
 
   // Generar keywords y descripción general para el documento
-  const allKeywords = Array.from(new Set(parts.flatMap((part) => Array.isArray(part.keywords) ? part.keywords : [])));
-  const generalDescription = parts.map((part) => (typeof part.summary === "string" ? part.summary : "")).filter(Boolean).join(" ").slice(0, 400);
+  const allKeywords = Array.from(new Set(allParts.flatMap((part) => Array.isArray(part.keywords) ? part.keywords : [])));
+  const generalDescription = allParts.map((part) => (typeof part.summary === "string" ? part.summary : "")).filter(Boolean).join(" ").slice(0, 400);
   const finalDescription = description || generalDescription;
 
   // 3. Guardar metadata en knowledge_docs
@@ -102,14 +133,13 @@ export async function processAndIngestDocument({ filePath, clientId, docId, file
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     status: "processed",
-    partsCount: parts.length,
+    partsCount: allParts.length,
   }, { merge: true });
 
   const index = pinecone.index("chatbot-knowledge");
   const namespace = `client_${clientId}`;
 
   // 4. Vectorizar la descripción del documento en document_catalog
-  //    Esto permite al knowledge_retriever pre-filtrar qué docs son relevantes
   await reportProgress("catalog_index", 58, "Indexando catálogo documental en Pinecone...");
   const catalogText = `${filename}: ${finalDescription}. Keywords: ${allKeywords.join(", ")}`;
   const catalogVector = await embeddings.embedQuery(catalogText);
@@ -125,53 +155,74 @@ export async function processAndIngestDocument({ filePath, clientId, docId, file
     },
   }]);
 
-  // 5. Guardar partes en knowledge_parts y Pinecone
-  await reportProgress("fragment_index", 65, `Indexando ${parts.length} fragmentos en Pinecone...`);
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    const partId = `part_${docId}_${i}`;
+  // 5. Guardar partes en knowledge_parts y Pinecone (en batch)
+  await reportProgress("fragment_index", 65, `Indexando ${allParts.length} fragmentos en Pinecone (batch)...`);
 
-    // Guardar en Firestore
-    await db.collection("knowledge_parts").doc(partId).set({
-      docId,
-      clientId,
-      filename,
-      text: part.text,
-      summary: part.summary,
-      keywords: part.keywords,
-      createdAt: new Date().toISOString(),
-      idx: i,
-    });
+  // Preparar textos enriquecidos para embedding batch
+  const enrichedTexts = allParts.map((part) =>
+    `${part.text}\n\nResumen: ${part.summary || ""}\nKeywords: ${(part.keywords || []).join(", ")}`
+  );
 
-    // Texto enriquecido para vectorizar: incluye summary y keywords para mejorar matching
-    const enrichedText = `${part.text}\n\nResumen: ${part.summary || ""}\nKeywords: ${(part.keywords || []).join(", ")}`;
-    const vector = await embeddings.embedQuery(enrichedText);
+  // Embedding en batch (usa batchEmbedContents internamente, lotes de hasta 100)
+  const vectors = await embeddings.embedDocuments(enrichedTexts);
 
-    await index.namespace(namespace).upsert([{
-      id: partId,
-      values: vector,
-      metadata: {
+  await reportProgress("fragment_index", 78, `Embeddings generados. Guardando en Firestore y Pinecone...`);
+
+  // Firestore batch writes (máx 500 por batch)
+  const FIRESTORE_BATCH_LIMIT = 400;
+  for (let batchStart = 0; batchStart < allParts.length; batchStart += FIRESTORE_BATCH_LIMIT) {
+    const batch = db.batch();
+    const batchEnd = Math.min(batchStart + FIRESTORE_BATCH_LIMIT, allParts.length);
+    
+    for (let i = batchStart; i < batchEnd; i++) {
+      const part = allParts[i];
+      const partId = `part_${docId}_${i}`;
+      const ref = db.collection("knowledge_parts").doc(partId);
+      batch.set(ref, {
         docId,
         clientId,
         filename,
-        description: part.summary || "",
         text: part.text,
-        keywords: (part.keywords || []).join(", "),
+        summary: part.summary,
+        keywords: part.keywords,
+        createdAt: new Date().toISOString(),
         idx: i,
-      },
-    }]);
+      });
+    }
+    await batch.commit();
+  }
 
-    const fragmentProgress = parts.length > 0
-      ? Math.min(95, 65 + Math.round(((i + 1) / parts.length) * 30))
-      : 95;
-    await reportProgress(
-      "fragment_index",
-      fragmentProgress,
-      `Fragmento ${i + 1} de ${parts.length} indexado`,
-    );
+  // Pinecone upsert en lotes (máx 100 vectores por upsert)
+  const PINECONE_BATCH_LIMIT = 100;
+  for (let batchStart = 0; batchStart < allParts.length; batchStart += PINECONE_BATCH_LIMIT) {
+    const batchEnd = Math.min(batchStart + PINECONE_BATCH_LIMIT, allParts.length);
+    const pineconeRecords = [];
+
+    for (let i = batchStart; i < batchEnd; i++) {
+      const part = allParts[i];
+      const partId = `part_${docId}_${i}`;
+      pineconeRecords.push({
+        id: partId,
+        values: vectors[i],
+        metadata: {
+          docId,
+          clientId,
+          filename,
+          description: part.summary || "",
+          text: part.text,
+          keywords: (part.keywords || []).join(", "),
+          idx: i,
+        },
+      });
+    }
+
+    await index.namespace(namespace).upsert(pineconeRecords);
+
+    const fragmentProgress = Math.min(95, 78 + Math.round((batchEnd / allParts.length) * 17));
+    await reportProgress("fragment_index", fragmentProgress, `Lote ${Math.ceil(batchEnd / PINECONE_BATCH_LIMIT)} indexado en Pinecone`);
   }
 
   await reportProgress("finalizing", 98, "Finalizando indexación y persistencia...");
-  console.log(`✅ Documento ingestado: ${filename} (${parts.length} partes) → namespace: ${namespace}, document_catalog`);
-  return { docId, partsCount: parts.length };
+  console.log(`✅ Documento ingestado: ${filename} (${allParts.length} partes) → namespace: ${namespace}, document_catalog`);
+  return { docId, partsCount: allParts.length };
 }

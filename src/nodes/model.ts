@@ -27,8 +27,13 @@ export async function modelNode(state: AgentStateType) {
     "get_history": "history_retriever",
   };
 
+  const { allowedDocIds = [] } = state;
+
   const allowedTools = tools.filter(tool => {
     if (tool.name === "context_manager") return true;
+
+    // No ofrecer knowledge_retriever si el agente no tiene documentos asignados
+    if (tool.name === "knowledge_retriever" && allowedDocIds.length === 0) return false;
 
     if (functions.includes(tool.name)) return true;
     
@@ -47,10 +52,6 @@ export async function modelNode(state: AgentStateType) {
 
     return false;
   });
-
-  console.log("🛠️ [MODEL] Skills del agente:", skills);
-  console.log("🛠️ [MODEL] Functions del agente:", functions);
-  console.log("🛠️ [MODEL] Tools filtradas:", allowedTools.map(t => t.name));
 
   const baseModel = new ChatGoogleGenerativeAI({
     modelName: "gemini-2.5-flash", 

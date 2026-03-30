@@ -1,7 +1,7 @@
 {
   "name": "ovni-agent-v2",
   "version": "2.0.0",
-  "description": "Agente IA Orquestado con LangGraph y Gemini 2.5 Flash Lite",
+  "description": "Agente IA Orquestado con LangGraph y Gemini 1.5 Flash",
   "type": "module",
   "main": "dist/server/index.js",
   "scripts": {

@@ -64,9 +64,20 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
     allowedDocIds: z.array(z.string()).optional().describe("Lista de IDs de documentos permitidos para este agente."),
   }),
   func: async ({ query, clientId, allowedDocIds = [] }) => {
+    // Si no hay documentos autorizados, no gastar llamadas a Pinecone
+    if (!allowedDocIds || allowedDocIds.length === 0) {
+      console.log("📄 [KNOWLEDGE] Sin documentos autorizados para este agente, omitiendo búsqueda.");
+      return "Este agente no tiene documentos de conocimiento asignados.";
+    }
+
     try {
-      const index = pinecone.index("chatbot-knowledge"); // Nombre del índice real corregido
+      const index = pinecone.index("chatbot-knowledge");
       const namespace = `client_${clientId}`;
+
+      console.log(`\n🔍 [KNOWLEDGE] ========== INICIO BÚSQUEDA =========`);
+      console.log(`🔍 [KNOWLEDGE] Query: "${query}"`);
+      console.log(`🔍 [KNOWLEDGE] Cliente: ${clientId} | Namespace: ${namespace}`);
+      console.log(`🔍 [KNOWLEDGE] Docs permitidos (${allowedDocIds.length}): ${allowedDocIds.join(", ")}`);
       
       // 1. Generar embedding de la consulta
       const queryVector = await embeddings.embedQuery(query);
@@ -83,17 +94,37 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
         includeMetadata: true,
       });
 
+      console.log(`🔍 [KNOWLEDGE] Capa 1 - Catálogo: ${catalogResults.matches.length} resultados`);
+      for (const m of catalogResults.matches) {
+        console.log(`   📑 ${m.metadata?.filename} (${m.metadata?.docId}) → score: ${(m.score || 0).toFixed(3)}`);
+      }
+
       const relevantDocIds = catalogResults.matches
         .filter(m => (m.score || 0) > 0.3)
         .map(m => m.metadata?.docId as string)
         .filter(Boolean);
 
+      console.log(`🔍 [KNOWLEDGE] Docs relevantes (score > 0.3): ${relevantDocIds.length > 0 ? relevantDocIds.join(", ") : "NINGUNO → fallback"}`);
+
       if (relevantDocIds.length === 0) {
+        // Fallback: búsqueda más amplia pero SIEMPRE limitada a los docs del agente
+        const broaderFilter: Record<string, any> = { clientId: { "$eq": clientId } };
+        if (allowedDocIds.length > 0) {
+          broaderFilter.docId = { "$in": allowedDocIds };
+        }
+
+        console.log(`🔍 [KNOWLEDGE] Fallback: búsqueda amplia en ${namespace}`);
         const broaderSearch = await index.namespace(namespace).query({
           vector: queryVector,
           topK: 5,
+          filter: broaderFilter,
           includeMetadata: true,
         });
+
+        console.log(`🔍 [KNOWLEDGE] Fallback: ${broaderSearch.matches?.length || 0} resultados`);
+        for (const m of (broaderSearch.matches || [])) {
+          console.log(`   📄 ${m.metadata?.filename} → score: ${(m.score || 0).toFixed(3)} | ${(m.metadata?.description as string || "").slice(0, 80)}`);
+        }
         
         if (!broaderSearch.matches || broaderSearch.matches.length === 0) {
           const productFallback = seemsProductQuery(query) ? await searchProductsFallback(query, clientId) : "";
@@ -109,15 +140,41 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
           .join("\n\n---\n\n");
       }
 
-      // 3. Capa 2: Búsqueda granular en el namespace del cliente
-      const searchResult = await index.namespace(namespace).query({
-        vector: queryVector,
-        topK: 5,
-        filter: { docId: { "$in": relevantDocIds } },
-        includeMetadata: true,
+      // 3. Capa 2: Búsqueda granular POR CADA documento relevante
+      // Buscamos en cada doc por separado para garantizar representación de todos
+      const TOP_PER_DOC = 3;
+      const allFragments: Array<{ score: number; filename: string; description: string; text: string; docId: string }> = [];
+
+      const docSearches = relevantDocIds.map(async (docId) => {
+        const result = await index.namespace(namespace).query({
+          vector: queryVector,
+          topK: TOP_PER_DOC,
+          filter: { docId: { "$eq": docId } },
+          includeMetadata: true,
+        });
+        return (result.matches || [])
+          .filter(m => (m.score || 0) >= 0.25)
+          .map(m => ({
+            score: m.score || 0,
+            filename: m.metadata?.filename as string || "",
+            description: m.metadata?.description as string || "",
+            text: m.metadata?.text as string || "",
+            docId,
+          }));
       });
 
-      if (!searchResult.matches || searchResult.matches.length === 0) {
+      const docResults = await Promise.all(docSearches);
+      for (let d = 0; d < relevantDocIds.length; d++) {
+        const docId = relevantDocIds[d];
+        const fragments = docResults[d];
+        console.log(`🔍 [KNOWLEDGE] Capa 2 - Doc ${docId}: ${fragments.length} fragmentos`);
+        for (const f of fragments) {
+          console.log(`   📄 ${f.filename} → score: ${f.score.toFixed(3)} | ${f.description.slice(0, 80)}`);
+        }
+        allFragments.push(...fragments);
+      }
+
+      if (allFragments.length === 0) {
         const productFallback = seemsProductQuery(query) ? await searchProductsFallback(query, clientId) : "";
         if (productFallback) {
           return `No encontré fragmentos documentales específicos, pero sí encontré esto en el catálogo estructurado:\n\n${productFallback}`;
@@ -125,9 +182,15 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
         return "No se encontraron fragmentos específicos que respondan a la consulta, ni coincidencias útiles en el catálogo estructurado.";
       }
 
-      return searchResult.matches
-        .filter(m => (m.score || 0) >= 0.25)
-        .map(m => `[DOC: ${m.metadata?.filename}] [SECCIÓN: ${m.metadata?.description}]:\n${m.metadata?.text}`)
+      // Ordenar por relevancia y limitar el total
+      allFragments.sort((a, b) => b.score - a.score);
+      const MAX_FRAGMENTS = 8;
+      const topFragments = allFragments.slice(0, MAX_FRAGMENTS);
+
+      console.log(`🔍 [KNOWLEDGE] ${relevantDocIds.length} docs relevantes → ${allFragments.length} fragmentos encontrados → devolviendo top ${topFragments.length}`);
+
+      return topFragments
+        .map(f => `[DOC: ${f.filename}] [SECCIÓN: ${f.description}]:\n${f.text}`)
         .join("\n\n---\n\n");
 
     } catch (error) {

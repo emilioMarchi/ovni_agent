@@ -1,4 +1,4 @@
-import { StateGraph, START, END, MemorySaver } from "@langchain/langgraph";
+import { StateGraph, START, END } from "@langchain/langgraph";
 import { toolsCondition } from "@langchain/langgraph/prebuilt";
 import { AgentState } from "../state/state.js";
 import { configNode } from "../nodes/config.js";
@@ -8,6 +8,7 @@ import { saveHistoryNode } from "../nodes/save_history.js";
 import { historyRetrieverNode } from "../nodes/history_retriever.js";
 import { speechToTextNode } from "../nodes/speechToText.js";
 import { textToSpeechNode } from "../nodes/textToSpeech.js";
+import { FirestoreCheckpointer } from "../state/checkpoint.js";
 /**
  * Orquestador del Agente OVNI v2.
  */
@@ -37,7 +38,7 @@ const workflow = new StateGraph(AgentState)
  * Inicializar la persistencia en memoria (Thread-level).
  * Esto permite retomar la conversación usando un 'thread_id'.
  */
-const checkpointer = new MemorySaver();
+const checkpointer = new FirestoreCheckpointer();
 /**
  * Compilar el grafo para su ejecución.
  */
