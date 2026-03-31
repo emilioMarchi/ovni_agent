@@ -9,6 +9,8 @@ import { masterAuth } from "../middleware/auth.js";
 import { processAndIngestDocument } from "../../utils/documentIngestor.js";
 const router = Router();
 const db = admin.firestore();
+// Map de procesos activos para poder cancelarlos
+const activeProcesses = new Map();
 const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt", ".md", ".json", ".xlsx", ".xls", ".csv"];
 function createProcessingLog(message) {
     return {
@@ -44,14 +46,12 @@ router.use(masterAuth);
 router.get("/", async (req, res) => {
     try {
         const { clientId } = req.query;
-        console.log(`[DOCS] Buscando documentos para clientId: ${clientId}`);
         if (!clientId) {
             return res.status(400).json({ success: false, error: "clientId es requerido" });
         }
         const snapshot = await db.collection("knowledge_docs")
             .where("clientId", "==", clientId)
             .get();
-        console.log(`[DOCS] Snapshot size: ${snapshot.size}`);
         const docs = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
@@ -121,6 +121,8 @@ router.post("/upload", upload.single("file"), async (req, res) => {
             },
         });
         void (async () => {
+            const abortController = new AbortController();
+            activeProcesses.set(docId, abortController);
             try {
                 const result = await processAndIngestDocument({
                     filePath: tempPath,
@@ -128,6 +130,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
                     docId,
                     filename,
                     description,
+                    signal: abortController.signal,
                     onProgress: async (progressUpdate) => {
                         await updateDocumentProcessing(docId, {
                             status: "processing",
@@ -145,15 +148,22 @@ router.post("/upload", upload.single("file"), async (req, res) => {
                 }, `Documento listo: ${result.partsCount} fragmentos indexados`);
             }
             catch (error) {
-                console.error("Error uploading document:", error);
-                await updateDocumentProcessing(docId, {
-                    status: "error",
-                    processingStage: "failed",
-                    processingProgress: 100,
-                    error: error.message || "Error desconocido procesando documento",
-                }, `Error procesando documento: ${error.message || "Error desconocido"}`);
+                if (error.message === "CANCELLED") {
+                    console.log(`🚫 Procesamiento cancelado: ${filename} (${docId})`);
+                    // No actualizar — el endpoint cancel ya lo maneja
+                }
+                else {
+                    console.error("Error uploading document:", error);
+                    await updateDocumentProcessing(docId, {
+                        status: "error",
+                        processingStage: "failed",
+                        processingProgress: 100,
+                        error: error.message || "Error desconocido procesando documento",
+                    }, `Error procesando documento: ${error.message || "Error desconocido"}`);
+                }
             }
             finally {
+                activeProcesses.delete(docId);
                 try {
                     fs.unlinkSync(tempPath);
                 }
@@ -190,6 +200,56 @@ router.post("/", async (req, res) => {
     catch (error) {
         console.error("Error creating document:", error);
         res.status(500).json({ success: false, error: "Error al crear documento" });
+    }
+});
+// Cancelar procesamiento de documento
+router.post("/:id/cancel", async (req, res) => {
+    try {
+        const { id } = req.params;
+        // Abortar el proceso si está activo
+        const controller = activeProcesses.get(id);
+        if (controller) {
+            controller.abort();
+            activeProcesses.delete(id);
+        }
+        // Marcar como cancelado en Firestore
+        const docRef = db.collection("knowledge_docs").doc(id);
+        const docSnap = await docRef.get();
+        if (!docSnap.exists) {
+            return res.status(404).json({ success: false, error: "Documento no encontrado" });
+        }
+        const docData = docSnap.data();
+        const clientId = docData.clientId;
+        // Limpiar partes parciales en Firestore
+        const partsSnap = await db.collection("knowledge_parts").where("docId", "==", id).get();
+        if (partsSnap.size > 0) {
+            const batch = db.batch();
+            partsSnap.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+        }
+        // Limpiar vectores parciales en Pinecone
+        try {
+            if (process.env.PINECONE_API_KEY) {
+                const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+                const index = pinecone.index("chatbot-knowledge");
+                const partIds = partsSnap.docs.map(d => d.id);
+                if (partIds.length > 0) {
+                    await index.namespace(`client_${clientId}`).deleteMany(partIds);
+                }
+                await index.namespace("document_catalog").deleteMany([id]);
+            }
+        }
+        catch (e) {
+            console.error("⚠️ Error limpiando Pinecone en cancel:", e);
+        }
+        // Eliminar el doc de Firestore
+        await docRef.delete();
+        console.log(`🚫 Documento cancelado y limpiado: ${id} (${partsSnap.size} partes eliminadas)`);
+        res.json({ success: true, message: "Procesamiento cancelado y datos limpiados" });
+    }
+    catch (error) {
+        console.error("Error cancelling document:", error);
+        res.status(500).json({ success: false, error: `Error al cancelar: ${error.message}` });
     }
 });
 // Eliminar documento con cascade (parts + Pinecone)

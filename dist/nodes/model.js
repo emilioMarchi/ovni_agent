@@ -21,9 +21,13 @@ export async function modelNode(state) {
         "schedule_meeting": "appointment_manager",
         "get_history": "history_retriever",
     };
+    const { allowedDocIds = [] } = state;
     const allowedTools = tools.filter(tool => {
         if (tool.name === "context_manager")
             return true;
+        // No ofrecer knowledge_retriever si el agente no tiene documentos asignados
+        if (tool.name === "knowledge_retriever" && allowedDocIds.length === 0)
+            return false;
         if (functions.includes(tool.name))
             return true;
         const isLegacyAllowed = Object.entries(legacyToNewMapping).some(([legacyName, actualName]) => actualName === tool.name && functions.includes(legacyName));
@@ -43,9 +47,6 @@ export async function modelNode(state) {
             return true;
         return false;
     });
-    console.log("🛠️ [MODEL] Skills del agente:", skills);
-    console.log("🛠️ [MODEL] Functions del agente:", functions);
-    console.log("🛠️ [MODEL] Tools filtradas:", allowedTools.map(t => t.name));
     const baseModel = new ChatGoogleGenerativeAI({
         modelName: "gemini-2.5-flash",
         maxOutputTokens: state.outputAudio ? 800 : 2048,
@@ -58,12 +59,26 @@ export async function modelNode(state) {
         new SystemMessage(systemPrompt),
         ...messages
     ];
-    const response = await modelWithTools.invoke(allMessages);
-    if (response.tool_calls && response.tool_calls.length > 0) {
+    let response;
+    try {
+        response = await modelWithTools.invoke(allMessages);
+    }
+    catch (err) {
+        console.error("[MODEL] Error invoking model:", err);
+        return {
+            messages: [new AIMessage("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo más tarde.")],
+        };
+    }
+    if (response && Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
         console.log(`🤖 Eva decidió usar: ${response.tool_calls.map((tc) => tc.name).join(", ")}`);
     }
     else {
         console.log(`💬 Eva decidió responder directamente.`);
+    }
+    if (!response || typeof response !== "object" || !("content" in response)) {
+        return {
+            messages: [new AIMessage("Lo siento, no se pudo obtener una respuesta válida del modelo.")],
+        };
     }
     return {
         messages: [response],
