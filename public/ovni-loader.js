@@ -1,7 +1,7 @@
 // OVNI Chat Widget Loader - universal para cualquier sitio web
 (function(){
   if (window.OvniWidget) return; // Evitar doble carga
-  var PROD_API_URL = 'http://64.23.138.249:8080';
+  var PROD_API_URL = 'https://api.ovnistudio.com.ar';
   var DEV_API_URL = 'http://localhost:8080';
 
   function isLocalHostname(hostname) {

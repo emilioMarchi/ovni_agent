@@ -1379,7 +1379,7 @@
 
     function getWidgetServerUrl() {
       const currentHost = window.location.hostname;
-      return isLocalWidgetHost(currentHost) ? 'http://localhost:8080' : 'http://64.23.138.249:8080';
+      return isLocalWidgetHost(currentHost) ? 'http://localhost:8080' : 'https://api.ovnistudio.com.ar';
     }
 
     window.openAgentModal = async function() {
@@ -1407,7 +1407,7 @@
     };
 
     window.copyAgentWidget = async function(agentId, clientId) {
-      const snippet = `<script>\n  (function() {\n    var PROD_API_URL = 'http://64.23.138.249:8080';\n    var DEV_API_URL = 'http://localhost:8080';\n    var isLocal = ['localhost', '127.0.0.1', '::1', '[::1]'].indexOf(window.location.hostname) !== -1;\n    var apiUrl = isLocal ? DEV_API_URL : PROD_API_URL;\n    var script = document.createElement('script');\n    script.src = apiUrl + '/ovni-loader.js';\n    script.onload = function() {\n      OvniWidget.init({\n        agentId: '${agentId}',\n        clientId: '${clientId}',\n        apiUrl: apiUrl\n      });\n    };\n    document.head.appendChild(script);\n  })();\n<\/script>`;
+      const snippet = `<script>\n  (function() {\n    var PROD_API_URL = 'https://api.ovnistudio.com.ar';\n    var DEV_API_URL = 'http://localhost:8080';\n    var isLocal = ['localhost', '127.0.0.1', '::1', '[::1]'].indexOf(window.location.hostname) !== -1;\n    var apiUrl = isLocal ? DEV_API_URL : PROD_API_URL;\n    var script = document.createElement('script');\n    script.src = apiUrl + '/ovni-loader.js';\n    script.onload = function() {\n      OvniWidget.init({\n        agentId: '${agentId}',\n        clientId: '${clientId}',\n        apiUrl: apiUrl\n      });\n    };\n    document.head.appendChild(script);\n  })();\n<\/script>`;
 
       try {
         await navigator.clipboard.writeText(snippet);
