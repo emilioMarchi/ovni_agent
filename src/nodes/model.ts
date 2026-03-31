@@ -69,12 +69,26 @@ export async function modelNode(state: AgentStateType) {
     ...messages
   ];
 
-  const response = await modelWithTools.invoke(allMessages);
+  let response;
+  try {
+    response = await modelWithTools.invoke(allMessages);
+  } catch (err) {
+    console.error("[MODEL] Error invoking model:", err);
+    return {
+      messages: [new AIMessage("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo más tarde.")],
+    };
+  }
 
-  if (response.tool_calls && response.tool_calls.length > 0) {
+  if (response && Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
     console.log(`🤖 Eva decidió usar: ${response.tool_calls.map((tc: any) => tc.name).join(", ")}`);
   } else {
     console.log(`💬 Eva decidió responder directamente.`);
+  }
+
+  if (!response || typeof response !== "object" || !("content" in response)) {
+    return {
+      messages: [new AIMessage("Lo siento, no se pudo obtener una respuesta válida del modelo.")],
+    };
   }
 
   return {
