@@ -1,138 +1,113 @@
+nano /root/ovni_agent/.env
+sudo certbot --nginx -d api.ovnistudio.com.ar
+curl https://api.ovnistudio.com.ar/health
+pm2 logs ovni-agent          # Logs de la app
+sudo ufw allow 80/tcp
+npm install
+npm run build
+pm2 restart ovni-agent
+pm2 reload ovni-agent
+
 =====================================
-DEPLOY ovni-agent → api.ovnistudio.com.ar
+DEPLOY LIMPIO ovni-agent → api.ovnistudio.com.ar
 =====================================
 
 PREREQUISITOS:
-- VPS con Ubuntu/Debian
+- VPS Ubuntu/Debian en DigitalOcean
+- Acceso solo por consola web (sin SSH externo)
 - Node.js 18+ instalado
 - nginx instalado
 - PM2 instalado (npm install -g pm2)
-- Dominio ovnistudio.com.ar con acceso al panel DNS
+- Dominio api.ovnistudio.com.ar apuntando a 64.23.138.249
 
 =====================================
 1. DNS — Panel de tu proveedor de dominio
 =====================================
 
-Agregar registro A:
+Tipo: A
+Host: api
+Valor: 64.23.138.249
+TTL: Auto
 
-  Tipo: A
-  Host: api
-  Valor: [IP_DE_TU_VPS]
-  TTL: 300
-
-Esto hace que api.ovnistudio.com.ar apunte a tu servidor.
-Esperar 5-10 min a que propague (verificar con: nslookup api.ovnistudio.com.ar)
+Desactiva el proxy (nube gris) en Cloudflare para emitir el SSL.
 
 =====================================
 2. SUBIR PROYECTO AL SERVIDOR
 =====================================
 
-# Opción A: Git clone
-cd /var/www
-git clone [TU_REPO] ovni-agent
-cd ovni-agent
-npm install
-
-# Opción B: rsync desde tu máquina local
-rsync -avz --exclude node_modules --exclude .env --exclude dist \
-  ./ user@[IP_VPS]:/var/www/ovni-agent/
-ssh user@[IP_VPS] "cd /var/www/ovni-agent && npm install"
+1. Desde tu PC, crea un .zip de todo el proyecto (sin node_modules ni dist).
+2. Sube el .zip al VPS usando el panel de archivos de DigitalOcean o wget/curl si tienes un link.
+3. En la consola web:
+  mkdir -p /root/ovni_agent
+  cd /root/ovni_agent
+  unzip /ruta/al/zip
+4. Instala dependencias:
+  npm install
 
 =====================================
 3. CONFIGURAR VARIABLES DE ENTORNO
 =====================================
 
-# En el servidor, crear .env
-nano /var/www/ovni-agent/.env
+1. Crea el archivo .env:
+  nano /root/ovni_agent/.env
 
-# Contenido mínimo:
-PORT=8080
-NODE_ENV=production
-GEMINI_API_KEY=tu_key
-PINECONE_API_KEY=tu_key
-# ... las demás variables que uses
+2. Ejemplo de contenido:
+  PORT=8080
+  NODE_ENV=production
+  GEMINI_API_KEY=tu_key
+  PINECONE_API_KEY=tu_key
+  # ... otras variables necesarias
 
-# Copiar también el service account de Firebase
-scp agent-firebase-service.json user@[IP_VPS]:/var/www/ovni-agent/
+3. Sube agent-firebase-service.json al mismo directorio (/root/ovni_agent).
 
 =====================================
 4. BUILD Y PM2
 =====================================
 
-cd /var/www/ovni-agent
-
-# Compilar TypeScript
+cd /root/ovni_agent
 npm run build
-
-# Crear carpeta de logs
 mkdir -p logs
-
-# Iniciar con PM2
 pm2 start ecosystem.config.cjs
-
-# Verificar que arrancó
-pm2 status
-pm2 logs ovni-agent --lines 20
-
-# Guardar para que PM2 reinicie con el servidor
 pm2 save
 pm2 startup
-# (ejecutar el comando que te muestre pm2 startup)
+# Ejecuta el comando que te muestre pm2 startup
 
 =====================================
-5. NGINX — Configurar reverse proxy
+5. NGINX — Configuración inicial para SSL
 =====================================
 
-# Copiar config de nginx
-sudo cp nginx/ovni-agent.conf /etc/nginx/sites-available/ovni-agent.conf
-
-# Habilitar el site
-sudo ln -s /etc/nginx/sites-available/ovni-agent.conf /etc/nginx/sites-enabled/
-
-# Eliminar default si existe
-sudo rm -f /etc/nginx/sites-enabled/default
-
-# Testear config (ANTES de generar SSL, comentar el bloque 443 temporalmente)
-# o simplemente ir directo al paso 6 con certbot --nginx
-
-sudo nginx -t
-sudo systemctl reload nginx
+1. Copia nginx/ovni-agent.conf a /etc/nginx/sites-available/ovni-agent.conf
+2. Edita ovni-agent.conf y deja SOLO el bloque server { listen 80; ... } (sin SSL, sin 443)
+3. Habilita el site:
+  sudo ln -s /etc/nginx/sites-available/ovni-agent.conf /etc/nginx/sites-enabled/
+  sudo rm -f /etc/nginx/sites-enabled/default
+4. Recarga nginx:
+  sudo nginx -t
+  sudo systemctl reload nginx
 
 =====================================
-6. SSL — Certificado con Certbot
+6. SSL — Emitir certificado con Certbot
 =====================================
 
-# Instalar certbot
 sudo apt update
 sudo apt install certbot python3-certbot-nginx -y
-
-# Generar certificado (certbot configura nginx automáticamente)
 sudo certbot --nginx -d api.ovnistudio.com.ar
+# Sigue los pasos: email, ToS, redirect HTTP→HTTPS (Yes)
 
-# Te va a pedir:
-# - Email para notificaciones de renovación
-# - Aceptar ToS
-# - Si querés redirect HTTP→HTTPS (decir Yes)
+Si todo sale bien, certbot agregará el bloque SSL automáticamente.
+Si no, edita ovni-agent.conf y agrega el bloque SSL manualmente (puedo darte el ejemplo si lo necesitas).
 
-# Verificar auto-renovación
-sudo certbot renew --dry-run
-
-# Certbot crea un cron/timer para renovar cada 60 días automáticamente
+Vuelve a activar el proxy naranja en Cloudflare si lo usas.
 
 =====================================
-7. VERIFICAR
+7. VERIFICAR Y LOGS
 =====================================
 
-# Desde tu máquina o el servidor:
 curl https://api.ovnistudio.com.ar/health
-
-# Debería responder algo como: {"status":"ok"}
-
-# Si falla, revisar:
-pm2 logs ovni-agent          # Logs de la app
-sudo tail -f /var/log/nginx/error.log   # Logs de nginx
-sudo nginx -t                # Config de nginx
-sudo ufw status              # Firewall (puerto 80 y 443 abiertos?)
+pm2 logs ovni-agent
+sudo tail -f /var/log/nginx/error.log
+sudo nginx -t
+sudo ufw status
 
 =====================================
 8. FIREWALL (si aplica)
@@ -148,14 +123,12 @@ sudo ufw status
 9. ACTUALIZAR EN EL FUTURO
 =====================================
 
-cd /var/www/ovni-agent
-git pull
+cd /root/ovni_agent
+rm -rf *
+# Sube y descomprime el nuevo .zip
 npm install
 npm run build
 pm2 restart ovni-agent
-
-# O con zero-downtime:
-pm2 reload ovni-agent
 
 =====================================
 NOTAS
