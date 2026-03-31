@@ -12,13 +12,50 @@ pm2 reload ovni-agent
 DEPLOY LIMPIO ovni-agent → api.ovnistudio.com.ar
 =====================================
 
+
 PREREQUISITOS:
 - VPS Ubuntu/Debian en DigitalOcean
 - Acceso solo por consola web (sin SSH externo)
-- Node.js 18+ instalado
-- nginx instalado
-- PM2 instalado (npm install -g pm2)
 - Dominio api.ovnistudio.com.ar apuntando a 64.23.138.249
+
+=====================================
+0. INSTALAR DEPENDENCIAS BÁSICAS
+============================ =========
+
+# Actualiza paquetes
+sudo apt update && sudo apt upgrade -y
+
+# Instala curl y unzip si no están
+sudo apt install curl unzip -y
+
+# Instala nginx
+sudo apt install nginx -y
+
+
+# Instala nvm (Node Version Manager)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+
+# Si después de instalar nvm el comando 'nvm' no funciona, ejecuta esto en la terminal:
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+# Si sigue sin funcionar, ejecuta:
+bash
+# y luego repite los comandos anteriores.
+
+# Instala Node.js 18 LTS y npm
+nvm install 18
+nvm use 18
+nvm alias default 18
+
+# Verifica versiones
+node -v
+npm -v
+
+# Instala pm2 global
+npm install -g pm2
+
+=====================================
 
 =====================================
 1. DNS — Panel de tu proveedor de dominio
