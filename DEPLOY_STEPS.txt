@@ -1,0 +1,169 @@
+=====================================
+DEPLOY ovni-agent → api.ovnistudio.com.ar
+=====================================
+
+PREREQUISITOS:
+- VPS con Ubuntu/Debian
+- Node.js 18+ instalado
+- nginx instalado
+- PM2 instalado (npm install -g pm2)
+- Dominio ovnistudio.com.ar con acceso al panel DNS
+
+=====================================
+1. DNS — Panel de tu proveedor de dominio
+=====================================
+
+Agregar registro A:
+
+  Tipo: A
+  Host: api
+  Valor: [IP_DE_TU_VPS]
+  TTL: 300
+
+Esto hace que api.ovnistudio.com.ar apunte a tu servidor.
+Esperar 5-10 min a que propague (verificar con: nslookup api.ovnistudio.com.ar)
+
+=====================================
+2. SUBIR PROYECTO AL SERVIDOR
+=====================================
+
+# Opción A: Git clone
+cd /var/www
+git clone [TU_REPO] ovni-agent
+cd ovni-agent
+npm install
+
+# Opción B: rsync desde tu máquina local
+rsync -avz --exclude node_modules --exclude .env --exclude dist \
+  ./ user@[IP_VPS]:/var/www/ovni-agent/
+ssh user@[IP_VPS] "cd /var/www/ovni-agent && npm install"
+
+=====================================
+3. CONFIGURAR VARIABLES DE ENTORNO
+=====================================
+
+# En el servidor, crear .env
+nano /var/www/ovni-agent/.env
+
+# Contenido mínimo:
+PORT=8080
+NODE_ENV=production
+GEMINI_API_KEY=tu_key
+PINECONE_API_KEY=tu_key
+# ... las demás variables que uses
+
+# Copiar también el service account de Firebase
+scp agent-firebase-service.json user@[IP_VPS]:/var/www/ovni-agent/
+
+=====================================
+4. BUILD Y PM2
+=====================================
+
+cd /var/www/ovni-agent
+
+# Compilar TypeScript
+npm run build
+
+# Crear carpeta de logs
+mkdir -p logs
+
+# Iniciar con PM2
+pm2 start ecosystem.config.cjs
+
+# Verificar que arrancó
+pm2 status
+pm2 logs ovni-agent --lines 20
+
+# Guardar para que PM2 reinicie con el servidor
+pm2 save
+pm2 startup
+# (ejecutar el comando que te muestre pm2 startup)
+
+=====================================
+5. NGINX — Configurar reverse proxy
+=====================================
+
+# Copiar config de nginx
+sudo cp nginx/ovni-agent.conf /etc/nginx/sites-available/ovni-agent.conf
+
+# Habilitar el site
+sudo ln -s /etc/nginx/sites-available/ovni-agent.conf /etc/nginx/sites-enabled/
+
+# Eliminar default si existe
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# Testear config (ANTES de generar SSL, comentar el bloque 443 temporalmente)
+# o simplemente ir directo al paso 6 con certbot --nginx
+
+sudo nginx -t
+sudo systemctl reload nginx
+
+=====================================
+6. SSL — Certificado con Certbot
+=====================================
+
+# Instalar certbot
+sudo apt update
+sudo apt install certbot python3-certbot-nginx -y
+
+# Generar certificado (certbot configura nginx automáticamente)
+sudo certbot --nginx -d api.ovnistudio.com.ar
+
+# Te va a pedir:
+# - Email para notificaciones de renovación
+# - Aceptar ToS
+# - Si querés redirect HTTP→HTTPS (decir Yes)
+
+# Verificar auto-renovación
+sudo certbot renew --dry-run
+
+# Certbot crea un cron/timer para renovar cada 60 días automáticamente
+
+=====================================
+7. VERIFICAR
+=====================================
+
+# Desde tu máquina o el servidor:
+curl https://api.ovnistudio.com.ar/health
+
+# Debería responder algo como: {"status":"ok"}
+
+# Si falla, revisar:
+pm2 logs ovni-agent          # Logs de la app
+sudo tail -f /var/log/nginx/error.log   # Logs de nginx
+sudo nginx -t                # Config de nginx
+sudo ufw status              # Firewall (puerto 80 y 443 abiertos?)
+
+=====================================
+8. FIREWALL (si aplica)
+=====================================
+
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 22/tcp
+sudo ufw enable
+sudo ufw status
+
+=====================================
+9. ACTUALIZAR EN EL FUTURO
+=====================================
+
+cd /var/www/ovni-agent
+git pull
+npm install
+npm run build
+pm2 restart ovni-agent
+
+# O con zero-downtime:
+pm2 reload ovni-agent
+
+=====================================
+NOTAS
+=====================================
+
+- El servidor escucha en puerto 8080 (interno)
+- nginx hace reverse proxy 443→8080
+- El widget se sirve desde /widget.html
+- El admin panel desde /master-admin.html
+- API base: https://api.ovnistudio.com.ar/api/
+- Health check: https://api.ovnistudio.com.ar/health
