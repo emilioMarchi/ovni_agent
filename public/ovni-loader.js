@@ -88,6 +88,30 @@
           const audioBtn = document.querySelector('.audio-trigger');
           if (audioBtn) audioBtn.addEventListener('click', () => this.toggleRecording());
 
+          // Force scroll isolation: capture wheel events so host site cannot block them
+          const messagesEl = document.getElementById('ovniMessages');
+          if (messagesEl) {
+            messagesEl.addEventListener('wheel', function(e) {
+              var delta = e.deltaY;
+              var scrollTop = messagesEl.scrollTop;
+              var scrollHeight = messagesEl.scrollHeight;
+              var clientHeight = messagesEl.clientHeight;
+              var atTop = scrollTop <= 0 && delta < 0;
+              var atBottom = scrollTop + clientHeight >= scrollHeight && delta > 0;
+              if (!atTop && !atBottom) {
+                e.preventDefault();
+                e.stopPropagation();
+                messagesEl.scrollTop += delta;
+              } else if (atTop || atBottom) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }, { passive: false, capture: true });
+            messagesEl.addEventListener('touchmove', function(e) {
+              e.stopPropagation();
+            }, { passive: true, capture: true });
+          }
+
           window.addEventListener('beforeunload', () => this.endSession());
 
           if (this.agentId) {
