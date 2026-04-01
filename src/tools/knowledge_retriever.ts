@@ -142,7 +142,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
 
       // 3. Capa 2: Búsqueda granular POR CADA documento relevante
       // Buscamos en cada doc por separado para garantizar representación de todos
-      const TOP_PER_DOC = 5;
+      const TOP_PER_DOC = 8;
       const allFragments: Array<{ score: number; filename: string; description: string; text: string; docId: string }> = [];
 
       const docSearches = relevantDocIds.map(async (docId) => {
@@ -153,7 +153,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
           includeMetadata: true,
         });
         return (result.matches || [])
-          .filter(m => (m.score || 0) >= 0.25)
+          .filter(m => (m.score || 0) >= 0.20)
           .map(m => ({
             score: m.score || 0,
             filename: m.metadata?.filename as string || "",
@@ -188,12 +188,12 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       // Umbral adaptativo: el score mínimo aceptable es el 60% del mejor score,
       // con un piso absoluto de 0.30 para no incluir ruido.
       const bestScore = allFragments[0]?.score || 0;
-      const RELATIVE_THRESHOLD = 0.6;
-      const ABSOLUTE_MIN_SCORE = 0.30;
+      const RELATIVE_THRESHOLD = 0.50;
+      const ABSOLUTE_MIN_SCORE = 0.25;
       const dynamicThreshold = Math.max(bestScore * RELATIVE_THRESHOLD, ABSOLUTE_MIN_SCORE);
 
       // Seleccionar todos los que superen el umbral, con un tope de seguridad de 20
-      const HARD_MAX = 20;
+      const HARD_MAX = 25;
       const topFragments = allFragments
         .filter(f => f.score >= dynamicThreshold)
         .slice(0, HARD_MAX);
