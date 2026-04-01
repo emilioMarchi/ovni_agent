@@ -111,15 +111,51 @@
               if (!atTop && !atBottom) {
                 e.preventDefault();
                 e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
                 messagesEl.scrollTop += delta;
               } else if (atTop || atBottom) {
                 e.preventDefault();
                 e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
               }
             }, { passive: false, capture: true });
             messagesEl.addEventListener('touchmove', function(e) {
               e.stopPropagation();
             }, { passive: true, capture: true });
+
+            // Algunos sitios interceptan wheel a nivel window/document en capture.
+            // Este relay global fuerza el scroll del panel antes de que el host anule la interacción.
+            this.boundWindowWheelHandler = (e) => {
+              if (!this.isOpen) return;
+
+              const currentMessagesEl = this.$('ovniMessages');
+              if (!currentMessagesEl) return;
+
+              const rect = currentMessagesEl.getBoundingClientRect();
+              const insideX = e.clientX >= rect.left && e.clientX <= rect.right;
+              const insideY = e.clientY >= rect.top && e.clientY <= rect.bottom;
+              if (!insideX || !insideY) return;
+
+              const canScroll = currentMessagesEl.scrollHeight > currentMessagesEl.clientHeight;
+              if (!canScroll) return;
+
+              const delta = typeof e.deltaY === 'number'
+                ? e.deltaY
+                : (typeof e.wheelDelta === 'number' ? -e.wheelDelta : 0);
+
+              const scrollTop = currentMessagesEl.scrollTop;
+              const maxScrollTop = currentMessagesEl.scrollHeight - currentMessagesEl.clientHeight;
+              const nextScrollTop = Math.max(0, Math.min(maxScrollTop, scrollTop + delta));
+
+              if (nextScrollTop !== scrollTop) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                currentMessagesEl.scrollTop = nextScrollTop;
+              }
+            };
+
+            window.addEventListener('wheel', this.boundWindowWheelHandler, { passive: false, capture: true });
           }
 
           window.addEventListener('beforeunload', () => this.endSession());
