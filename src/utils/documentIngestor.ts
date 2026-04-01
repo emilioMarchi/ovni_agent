@@ -10,7 +10,7 @@ import { extractTextFromFile } from "./extractText.js";
 const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
 const embeddings = new GoogleGenerativeAIEmbeddings({
   model: "gemini-embedding-001",
-  taskType: TaskType.RETRIEVAL_QUERY,
+  taskType: TaskType.RETRIEVAL_DOCUMENT,
   apiKey: process.env.GEMINI_API_KEY,
 });
 const chatModel = new ChatGoogleGenerativeAI({
@@ -31,6 +31,7 @@ type IngestDocumentParams = {
 
 type DocumentPart = {
   text: string;
+  section_title?: string;
   summary?: string;
   keywords?: string[];
 };
@@ -89,7 +90,7 @@ function repairAndParseJSON(raw: string): DocumentPart[] {
 
   // Último recurso: extraer todos los objetos completos que se puedan parsear
   const objects: DocumentPart[] = [];
-  const regex = /\{\s*"text"\s*:\s*"[\s\S]*?"\s*,\s*"summary"\s*:\s*"[\s\S]*?"\s*,\s*"keywords"\s*:\s*\[[^\]]*\]\s*\}/g;
+  const regex = /\{(?:\s*"section_title"\s*:\s*"[\s\S]*?"\s*,)?\s*"text"\s*:\s*"[\s\S]*?"\s*,\s*"summary"\s*:\s*"[\s\S]*?"\s*,\s*"keywords"\s*:\s*\[[^\]]*\]\s*\}/g;
   let match;
   while ((match = regex.exec(raw)) !== null) {
     try {
@@ -148,17 +149,24 @@ export async function processAndIngestDocument({ filePath, clientId, docId, file
     
     const prompt = `Sos un experto en organización de documentos para búsqueda semántica (RAG).
 
-Tu tarea es dividir el siguiente texto en fragmentos relevantes para búsqueda semántica. Cada fragmento debe ser una unidad lógica del contenido (un artículo, una cláusula, un párrafo temático, una sección, etc.).
+Tu tarea es dividir el siguiente texto en fragmentos optimizados para recuperación semántica. Cada fragmento debe ser una UNIDAD LÓGICA del contenido.
 
-REGLAS:
-- Fragmentá de forma GRANULAR: cada artículo, cláusula o párrafo temático debe ser un fragmento separado.
-- Si un artículo o sección es muy corto (1-2 líneas), podés agruparlo con el siguiente relacionado.
-- El "text" debe contener el texto ORIGINAL completo del fragmento (no lo resumas ni lo recortes).
-- El "summary" debe describir de qué trata el fragmento en 1-2 oraciones.
-- Las "keywords" deben ser 3-7 términos clave para encontrar este fragmento.
+REGLAS DE FRAGMENTACIÓN:
+- Fragmentá por UNIDADES TEMÁTICAS: un artículo, una cláusula, un producto/servicio completo, una sección conceptual, una FAQ, etc.
+- Si hay LISTAS DE ITEMS (productos, servicios, planes, precios): cada ítem debe ser un fragmento individual.
+- Si un artículo o sección es muy corto (1-2 líneas), agrupalo con contenido relacionado adyacente.
+- NO fragmentes a mitad de una idea. Es mejor un fragmento más largo que uno incompleto.
 - Generá TODOS los fragmentos que el texto requiera, sin límite artificial.
 
-Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`;
+CAMPOS POR FRAGMENTO:
+- "section_title": Título jerárquico que ubique el fragmento en el documento (ej: "Productos > Agente Cognitivo", "Políticas > Devoluciones", "Art. 52 - Obligaciones del Vendedor"). Debe dar contexto de DÓNDE está este fragmento dentro del documento.
+- "text": Texto ORIGINAL EXACTO del fragmento, copiado textualmente del documento. NO lo modifiques, resumas, parafrasees ni le agregues nada. Debe ser idéntico al original.
+- "summary": Descripción clara de 1-3 oraciones de qué contiene este fragmento. Acá SÍ podés agregar contexto interpretativo (ej: "Este fragmento describe el producto Agente Cognitivo de OVNI Studio y sus características principales").
+- "keywords": 5-10 términos clave para encontrar este fragmento. Incluí sinónimos y variaciones comunes que un usuario podría buscar.
+
+Devolvé SOLO un JSON válido: [{"section_title":"...", "text":"...", "summary":"...", "keywords":["..."]}].
+
+Texto del documento "${filename}":\n${batch}`;
     
     try {
       const result = await chatModel.invoke(prompt);
@@ -280,9 +288,9 @@ Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`
   // 5. Guardar partes en knowledge_parts y Pinecone (en batch)
   await reportProgress("fragment_index", 65, `Indexando ${allParts.length} fragmentos en Pinecone (batch)...`);
 
-  // Preparar textos enriquecidos para embedding batch
+  // Preparar textos enriquecidos para embedding batch (incluye contexto documental)
   const enrichedTexts = allParts.map((part) =>
-    `${part.text}\n\nResumen: ${part.summary || ""}\nKeywords: ${(part.keywords || []).join(", ")}`
+    `[Documento: ${filename}] [Sección: ${part.section_title || "General"}]\n${part.text}\n\nResumen: ${part.summary || ""}\nPalabras clave: ${(part.keywords || []).join(", ")}`
   );
 
   // Embedding en batch (usa batchEmbedContents internamente, lotes de hasta 100)
@@ -304,6 +312,7 @@ Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`
         docId,
         clientId,
         filename,
+        section_title: part.section_title || "",
         text: part.text,
         summary: part.summary,
         keywords: part.keywords,
@@ -335,6 +344,7 @@ Devuelve SOLO un JSON válido: [{text, summary, keywords:[]}]. Texto:\n${batch}`
           docId,
           clientId,
           filename,
+          section_title: (part.section_title || "").slice(0, 200),
           description: (part.summary || "").slice(0, 500),
           text: metaText,
           keywords: (part.keywords || []).join(", ").slice(0, 500),

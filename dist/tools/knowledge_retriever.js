@@ -137,6 +137,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
                     score: m.score || 0,
                     filename: m.metadata?.filename || "",
                     description: m.metadata?.description || "",
+                    section_title: m.metadata?.section_title || "",
                     text: m.metadata?.text || "",
                     docId,
                 }));
@@ -176,7 +177,10 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
                 console.log(`   ✅ score=${f.score.toFixed(3)} | ${f.filename} → ${f.description.slice(0, 60)}`);
             }
             return topFragments
-                .map(f => `[DOC: ${f.filename}] [SECCIÓN: ${f.description}]:\n${f.text}`)
+                .map(f => {
+                const section = f.section_title || f.description;
+                return `[DOC: ${f.filename}] [SECCIÓN: ${section}]:\n${f.text}`;
+            })
                 .join("\n\n---\n\n");
         }
         catch (error) {

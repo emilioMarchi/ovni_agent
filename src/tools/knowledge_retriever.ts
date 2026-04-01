@@ -143,7 +143,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       // 3. Capa 2: Búsqueda granular POR CADA documento relevante
       // Buscamos en cada doc por separado para garantizar representación de todos
       const TOP_PER_DOC = 8;
-      const allFragments: Array<{ score: number; filename: string; description: string; text: string; docId: string }> = [];
+      const allFragments: Array<{ score: number; filename: string; description: string; section_title: string; text: string; docId: string }> = [];
 
       const docSearches = relevantDocIds.map(async (docId) => {
         const result = await index.namespace(namespace).query({
@@ -158,6 +158,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
             score: m.score || 0,
             filename: m.metadata?.filename as string || "",
             description: m.metadata?.description as string || "",
+            section_title: m.metadata?.section_title as string || "",
             text: m.metadata?.text as string || "",
             docId,
           }));
@@ -204,7 +205,10 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       }
 
       return topFragments
-        .map(f => `[DOC: ${f.filename}] [SECCIÓN: ${f.description}]:\n${f.text}`)
+        .map(f => {
+          const section = f.section_title || f.description;
+          return `[DOC: ${f.filename}] [SECCIÓN: ${section}]:\n${f.text}`;
+        })
         .join("\n\n---\n\n");
 
     } catch (error) {

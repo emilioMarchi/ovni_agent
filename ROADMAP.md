@@ -70,6 +70,10 @@ Este documento detalla el progreso y la planificación del Agente OVNI v2 (Matri
 
 ## 🕒 Futuro: Optimizaciones
 - [x] **Fragmentación Semántica**: Gemini 2.5 Flash divide documentos en secciones lógicas (artículos, cláusulas, párrafos temáticos) en lotes de 100K chars.
+- [x] **Embeddings Asimétricos**: Corregido TaskType a `RETRIEVAL_DOCUMENT` para ingesta y `RETRIEVAL_QUERY` para búsqueda (modelo asimétrico de Google).
+- [x] **Prompt de Chunking Optimizado**: Fragmentos autosuficientes, ítems de listas como fragmentos individuales, texto original exacto sin modificar, `section_title` jerárquico, 5-10 keywords con sinónimos.
+- [x] **Embedding Enriquecido**: Texto de embedding incluye contexto documental (`[Documento: X] [Sección: Y]`) + summary + keywords para mejor matching vectorial, sin alterar el texto almacenado.
+- [x] **Metadata `section_title`**: Navegación jerárquica en Pinecone y Firestore (ej: "Productos > Agente Cognitivo"). Retriever retrocompatible con documentos sin este campo.
 - [ ] **Builder de Workflows**: Configurar flujos de estados por agente desde Firestore.
 - [ ] **Templates**: Plantillas preconfiguradas por industria.
 - [ ] **Analytics**: Panel de uso de tokens y efectividad de respuestas.
