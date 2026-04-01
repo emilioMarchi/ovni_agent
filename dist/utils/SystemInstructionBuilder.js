@@ -91,6 +91,12 @@ function getSalesFlow() {
 FLUJO DE VENTAS (Solo si NO hay intención clara de reunión aún)
 ═══════════════════════════════════════════════════════════════
 
+⚠️ PRIORIDAD DE BÚSQUEDA DE INFORMACIÓN:
+- Cuando el usuario pregunte por productos, servicios, precios, planes o cualquier info comercial:
+  1. SIEMPRE usá knowledge_retriever PRIMERO. Los documentos del negocio son la fuente principal.
+  2. SOLO si knowledge_retriever no devuelve resultados útiles, usá product_catalog como respaldo.
+  3. NUNCA uses product_catalog como primera opción si knowledge_retriever está disponible.
+
 SI EL USUARIO PREGUNTA POR PRECIOS, SERVICIOS O INFO GENERAL:
 1. Respondé con info útil del conocimiento.
 2. Si querés ofrecer una reunión, hacelo SOLO en texto, de forma natural y breve.

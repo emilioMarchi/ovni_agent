@@ -57,7 +57,7 @@ async function searchProductsFallback(query: string, clientId: string) {
  */
 export const knowledgeRetrieverTool = new DynamicStructuredTool({
   name: "knowledge_retriever",
-  description: "Úsala SIEMPRE que el usuario pregunte por detalles específicos, servicios, manuales, políticas, precios de servicios o preguntas frecuentes. Esta es la única fuente de verdad para información detallada del negocio.",
+  description: "Fuente principal de verdad del negocio. Úsala SIEMPRE PRIMERO cuando el usuario pregunte por servicios, productos, precios, planes, manuales, políticas o cualquier detalle específico. Contiene documentos cargados por el administrador con toda la información comercial y operativa.",
   schema: z.object({
     query: z.string().describe("La pregunta o término de búsqueda."),
     clientId: z.string().describe("ID del cliente para filtrar la búsqueda."),

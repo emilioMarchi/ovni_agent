@@ -46,7 +46,7 @@ const embeddings = new GoogleGenerativeAIEmbeddings({
  */
 export const productCatalogTool = new DynamicStructuredTool({
     name: "product_catalog",
-    description: "Busca productos estructurados del catálogo del cliente, como items concretos, SKU, precio o categoría. Si no encuentra coincidencias claras, debe revisar si la información está en documentos del negocio antes de responder que no hay resultados.",
+    description: "Busca productos en el catálogo estructurado (base de datos). Úsala SOLO como complemento DESPUÉS de haber buscado en knowledge_retriever. Si knowledge_retriever ya devolvió info de productos o servicios, NO uses esta herramienta.",
     schema: z.object({
         query: z.preprocess(normalizeSearchText, z.string().default("")).describe("Nombre o descripción del producto buscado."),
         clientId: z.preprocess(normalizeSearchText, z.string()).describe("ID del cliente para filtrar por su catálogo."),
