@@ -182,12 +182,26 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
         return "No se encontraron fragmentos específicos que respondan a la consulta, ni coincidencias útiles en el catálogo estructurado.";
       }
 
-      // Ordenar por relevancia y limitar el total
+      // Ordenar por relevancia y seleccionar dinámicamente por umbral adaptativo
       allFragments.sort((a, b) => b.score - a.score);
-      const MAX_FRAGMENTS = 15;
-      const topFragments = allFragments.slice(0, MAX_FRAGMENTS);
 
-      console.log(`🔍 [KNOWLEDGE] ${relevantDocIds.length} docs relevantes → ${allFragments.length} fragmentos encontrados → devolviendo top ${topFragments.length}`);
+      // Umbral adaptativo: el score mínimo aceptable es el 60% del mejor score,
+      // con un piso absoluto de 0.30 para no incluir ruido.
+      const bestScore = allFragments[0]?.score || 0;
+      const RELATIVE_THRESHOLD = 0.6;
+      const ABSOLUTE_MIN_SCORE = 0.30;
+      const dynamicThreshold = Math.max(bestScore * RELATIVE_THRESHOLD, ABSOLUTE_MIN_SCORE);
+
+      // Seleccionar todos los que superen el umbral, con un tope de seguridad de 20
+      const HARD_MAX = 20;
+      const topFragments = allFragments
+        .filter(f => f.score >= dynamicThreshold)
+        .slice(0, HARD_MAX);
+
+      console.log(`🔍 [KNOWLEDGE] Selección dinámica: bestScore=${bestScore.toFixed(3)} | threshold=${dynamicThreshold.toFixed(3)} | ${allFragments.length} total → ${topFragments.length} seleccionados`);
+      for (const f of topFragments) {
+        console.log(`   ✅ score=${f.score.toFixed(3)} | ${f.filename} → ${f.description.slice(0, 60)}`);
+      }
 
       return topFragments
         .map(f => `[DOC: ${f.filename}] [SECCIÓN: ${f.description}]:\n${f.text}`)
