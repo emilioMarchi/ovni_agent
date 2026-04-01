@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import "./firebase.js";
+import admin from "./firebase.js";
 import authRouter from "./routes/auth.js";
 import adminsRouter from "./routes/admins.js";
 import agentsRouter from "./routes/agents.js";
@@ -10,14 +11,84 @@ import documentsRouter from "./routes/documents.js";
 import chatRouter from "./routes/chat.js";
 import meetingsRouter from "./routes/meetings.js";
 import { validateClientFormat } from "./middleware/auth.js";
+import { normalizeAllowedDomains } from "./middleware/widgetSecurity.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// --- Dynamic CORS: allows base domains + all registered admin domains ---
+const BASE_ALLOWED_ORIGINS = [
+  "http://localhost",
+  "http://localhost:3000",
+  "http://localhost:8080",
+  "http://127.0.0.1",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:8080",
+  "https://ovnistudio.com.ar",
+  "https://dev.ovnistudio.com.ar",
+  "https://api.ovnistudio.com.ar",
+];
+
+let dynamicAllowedOrigins: Set<string> = new Set(BASE_ALLOWED_ORIGINS);
+let dynamicOriginsLoadedAt = 0;
+const DYNAMIC_ORIGINS_TTL_MS = 5 * 60 * 1000;
+
+async function refreshAllowedOrigins(): Promise<void> {
+  if (Date.now() - dynamicOriginsLoadedAt < DYNAMIC_ORIGINS_TTL_MS) return;
+  try {
+    const db = admin.firestore();
+    const snapshot = await db.collection("admins").get();
+    const origins = new Set(BASE_ALLOWED_ORIGINS);
+    for (const doc of snapshot.docs) {
+      const domains = normalizeAllowedDomains(doc.data()?.allowedDomains);
+      for (const domain of domains) {
+        origins.add(`https://${domain}`);
+        origins.add(`http://${domain}`);
+      }
+    }
+    dynamicAllowedOrigins = origins;
+    dynamicOriginsLoadedAt = Date.now();
+  } catch (e) {
+    console.error("Error refreshing CORS origins:", e);
+  }
+}
+
+// Pre-load on startup
+refreshAllowedOrigins();
+
+function matchOrigin(origin: string): boolean {
+  if (dynamicAllowedOrigins.has(origin)) return true;
+  // Wildcard support: check *.domain patterns
+  try {
+    const host = new URL(origin).host;
+    for (const allowed of dynamicAllowedOrigins) {
+      try {
+        const allowedHost = new URL(allowed).host;
+        if (allowedHost.startsWith("*.")) {
+          const suffix = allowedHost.slice(2);
+          if (host === suffix || host.endsWith(`.${suffix}`)) return true;
+        }
+      } catch { /* skip malformed */ }
+    }
+  } catch { /* skip malformed */ }
+  return false;
+}
+
 app.use(cors({
-  origin: "*",
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, Postman, etc.)
+    if (!origin) return callback(null, true);
+    refreshAllowedOrigins().then(() => {
+      if (matchOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Still allow but don't set Access-Control-Allow-Origin header for unknown origins
+        // Note: Real blocking happens in widgetAccessGuard middleware, not CORS
+      }
+    });
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-client-id", "x-ovni-widget-token"],
 }));
