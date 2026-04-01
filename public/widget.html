@@ -67,17 +67,17 @@
     .ovni-toggle.open svg.icon-close { display: block; }
     
     .ovni-window {
-      position: absolute;
-      bottom: 70px;
-      right: 0;
-      width: 320px;
-      height: 450px;
+      position: absolute !important;
+      bottom: 70px !important;
+      right: 0 !important;
+      width: 320px !important;
+      height: 450px !important;
       background: var(--primary-bg);
       border: 2px solid var(--border-color);
       border-radius: 18px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
       opacity: 0;
       visibility: hidden;
@@ -107,16 +107,21 @@
     }
     
     .ovni-messages {
-      flex: 1;
-      overflow-y: auto;
+      flex: 1 !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      min-height: 0 !important;
       padding: 15px;
-      display: flex;
+      display: flex !important;
       flex-direction: column;
       gap: 12px;
-      scrollbar-width: none;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(108, 136, 163, 0.4) transparent;
     }
     
-    .ovni-messages::-webkit-scrollbar { display: none; }
+    .ovni-messages::-webkit-scrollbar { display: block !important; width: 4px !important; }
+    .ovni-messages::-webkit-scrollbar-track { background: transparent !important; }
+    .ovni-messages::-webkit-scrollbar-thumb { background-color: rgba(108, 136, 163, 0.4) !important; border-radius: 4px !important; }
 
     .empty-chat-hint {
       display: flex;

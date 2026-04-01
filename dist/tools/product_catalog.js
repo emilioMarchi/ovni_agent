@@ -15,12 +15,15 @@ async function searchDocumentsFallback(query, clientId, allowedDocIds = []) {
     const index = pinecone.index("chatbot-knowledge");
     const namespace = `client_${clientId}`;
     const queryVector = await embeddings.embedQuery(normalizedQuery);
-    const searchResult = await index.namespace(namespace).query({
+    const queryOptions = {
         vector: queryVector,
         topK: 4,
         includeMetadata: true,
-        ...(allowedDocIds.length > 0 ? { filter: { docId: { "$in": allowedDocIds } } } : {}),
-    });
+    };
+    if (allowedDocIds.length > 0) {
+        queryOptions.filter = { docId: { "$in": allowedDocIds } };
+    }
+    const searchResult = await index.namespace(namespace).query(queryOptions);
     const matches = (searchResult.matches || []).filter((match) => (match.score || 0) >= 0.25);
     if (matches.length === 0) {
         return "";
@@ -72,18 +75,18 @@ export const productCatalogTool = new DynamicStructuredTool({
                     .get();
                 results = snapshot.docs
                     .map(doc => ({ id: doc.id, score: 0.5, ...doc.data() }))
-                    .filter(p => {
+                    .filter((p) => {
                     const searchText = `${p.nombre} ${p.descripcion || ''} ${p.categoria || ''}`.toLowerCase();
                     return queryWords.some(word => searchText.includes(word));
                 })
-                    .map(p => ({
+                    .map((p) => ({
                     ...p,
                     score: p.nombre?.toLowerCase().includes(queryWords[0]) ? 0.9 : 0.5
                 }));
             }
             // 3. Filtrado por categorías permitidas
             if (allowedCategories.length > 0) {
-                results = results.filter(p => typeof p.categoria === "string" && allowedCategories.includes(p.categoria));
+                results = results.filter(p => allowedCategories.includes(p.categoria));
             }
             // 4. Formatear salida
             if (results.length === 0) {

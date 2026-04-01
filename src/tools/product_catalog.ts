@@ -5,16 +5,6 @@ import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TaskType } from "@google/generative-ai";
 import admin from "firebase-admin";
 
-type CatalogProduct = {
-  id: string;
-  score: number;
-  nombre?: string;
-  descripcion?: string;
-  categoria?: string;
-  precio?: number;
-  sku?: string;
-};
-
 function normalizeSearchText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -29,12 +19,17 @@ async function searchDocumentsFallback(query: string, clientId: string, allowedD
   const namespace = `client_${clientId}`;
   const queryVector = await embeddings.embedQuery(normalizedQuery);
 
-  const searchResult = await index.namespace(namespace).query({
+  const queryOptions: Record<string, unknown> = {
     vector: queryVector,
     topK: 4,
     includeMetadata: true,
-    ...(allowedDocIds.length > 0 ? { filter: { docId: { "$in": allowedDocIds } } as any } : {}),
-  });
+  };
+
+  if (allowedDocIds.length > 0) {
+    queryOptions.filter = { docId: { "$in": allowedDocIds } };
+  }
+
+  const searchResult = await index.namespace(namespace).query(queryOptions as any);
   const matches = (searchResult.matches || []).filter((match) => (match.score || 0) >= 0.25);
 
   if (matches.length === 0) {
@@ -73,7 +68,7 @@ export const productCatalogTool = new DynamicStructuredTool({
   func: async ({ query, clientId, allowedCategories = [], allowedDocIds = [], listAll = false }) => {
     try {
       const db = admin.firestore();
-      let results: CatalogProduct[] = [];
+      let results: any[] = [];
       const normalizedQuery = normalizeSearchText(query);
 
       if (listAll || !normalizedQuery) {
@@ -81,7 +76,7 @@ export const productCatalogTool = new DynamicStructuredTool({
           .where("clientId", "==", clientId)
           .limit(10)
           .get();
-        results = snapshot.docs.map(doc => ({ id: doc.id, score: 1, ...(doc.data() as Omit<CatalogProduct, "id" | "score">) }));
+        results = snapshot.docs.map(doc => ({ id: doc.id, score: 1, ...doc.data() }));
       } else {
         const queryLower = normalizedQuery.toLowerCase();
         const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
@@ -92,12 +87,12 @@ export const productCatalogTool = new DynamicStructuredTool({
           .get();
         
         results = snapshot.docs
-          .map(doc => ({ id: doc.id, score: 0.5, ...(doc.data() as Omit<CatalogProduct, "id" | "score">) }))
-          .filter(p => {
+          .map(doc => ({ id: doc.id, score: 0.5, ...doc.data() }))
+          .filter((p: any) => {
             const searchText = `${p.nombre} ${p.descripcion || ''} ${p.categoria || ''}`.toLowerCase();
             return queryWords.some(word => searchText.includes(word));
           })
-          .map(p => ({ 
+          .map((p: any) => ({ 
             ...p, 
             score: p.nombre?.toLowerCase().includes(queryWords[0]) ? 0.9 : 0.5 
           }));
@@ -106,7 +101,7 @@ export const productCatalogTool = new DynamicStructuredTool({
 
       // 3. Filtrado por categorías permitidas
       if (allowedCategories.length > 0) {
-        results = results.filter(p => typeof p.categoria === "string" && allowedCategories.includes(p.categoria));
+        results = results.filter(p => allowedCategories.includes(p.categoria));
       }
 
       // 4. Formatear salida
