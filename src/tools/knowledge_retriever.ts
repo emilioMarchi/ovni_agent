@@ -86,7 +86,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       // Nota: En la v2, mantenemos la lógica de 'document_catalog' para pre-filtrado si es necesario
       const catalogResults = await index.namespace("document_catalog").query({
         vector: queryVector,
-        topK: 5,
+        topK: 8,
         filter: { 
           clientId: { "$eq": clientId },
           docId: { "$in": allowedDocIds }
@@ -116,7 +116,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
         console.log(`🔍 [KNOWLEDGE] Fallback: búsqueda amplia en ${namespace}`);
         const broaderSearch = await index.namespace(namespace).query({
           vector: queryVector,
-          topK: 5,
+          topK: 10,
           filter: broaderFilter,
           includeMetadata: true,
         });
@@ -142,7 +142,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
 
       // 3. Capa 2: Búsqueda granular POR CADA documento relevante
       // Buscamos en cada doc por separado para garantizar representación de todos
-      const TOP_PER_DOC = 3;
+      const TOP_PER_DOC = 5;
       const allFragments: Array<{ score: number; filename: string; description: string; text: string; docId: string }> = [];
 
       const docSearches = relevantDocIds.map(async (docId) => {
@@ -184,7 +184,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
 
       // Ordenar por relevancia y limitar el total
       allFragments.sort((a, b) => b.score - a.score);
-      const MAX_FRAGMENTS = 8;
+      const MAX_FRAGMENTS = 15;
       const topFragments = allFragments.slice(0, MAX_FRAGMENTS);
 
       console.log(`🔍 [KNOWLEDGE] ${relevantDocIds.length} docs relevantes → ${allFragments.length} fragmentos encontrados → devolviendo top ${topFragments.length}`);
