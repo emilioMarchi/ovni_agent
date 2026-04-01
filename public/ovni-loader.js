@@ -48,7 +48,7 @@
       host.id = 'ovniWidgetHost';
       host.style.cssText = 'position:fixed;bottom:0;right:0;z-index:999999;pointer-events:none;';
       document.body.appendChild(host);
-      var shadow = host.attachShadow({ mode: 'open' });
+      var shadow = host.attachShadow({ mode: 'open', delegatesFocus: true });
 
       // Inyectar CSS dentro del Shadow DOM (aislado del host site)
       var style = document.createElement('style');
@@ -81,7 +81,7 @@
           this.init();
         }
 
-        $(id) { return this.shadow.getElementById(id); }
+        $(id) { return this.shadow.querySelector('#' + id); }
         $q(sel) { return this.shadow.querySelector(sel); }
 
         init() {
