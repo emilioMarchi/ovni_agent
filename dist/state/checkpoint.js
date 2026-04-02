@@ -65,7 +65,8 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
     }
     async put(config, checkpoint, metadata, _newVersions) {
         const thread_id = this.getThreadId(config);
-        const [serdeType, serializedCheckpoint] = this.serde.dumpsTyped(checkpoint);
+        const sanitizedCheckpoint = this.stripTransientState(checkpoint);
+        const [serdeType, serializedCheckpoint] = this.serde.dumpsTyped(sanitizedCheckpoint);
         const [metadataSerdeType, serializedMetadata] = this.serde.dumpsTyped(metadata);
         // Convertir Uint8Array a string para Firestore
         const checkpointStr = typeof serializedCheckpoint === "string"
@@ -83,6 +84,17 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         return { configurable: { thread_id } };
+    }
+    stripTransientState(checkpoint) {
+        const clone = structuredClone(checkpoint);
+        if (clone.channel_values) {
+            // El audio TTS es transitorio: se usa para responder al cliente, pero no debe
+            // persistirse en Firestore porque hace crecer el checkpoint por encima de 1 MB.
+            if ("audioBuffer" in clone.channel_values) {
+                clone.channel_values.audioBuffer = null;
+            }
+        }
+        return clone;
     }
     async putWrites(_config, _writes, _taskId) {
         return;
