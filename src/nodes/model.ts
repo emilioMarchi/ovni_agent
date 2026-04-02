@@ -57,7 +57,7 @@ export async function modelNode(state: AgentStateType) {
 
   const baseModel = new ChatGoogleGenerativeAI({
     modelName: "gemini-2.5-flash", 
-    maxOutputTokens: state.outputAudio ? 800 : 2048,
+    maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
     temperature: 0.3,
     apiKey: process.env.GEMINI_API_KEY,
   });

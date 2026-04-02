@@ -1,0 +1,7 @@
+En OVNI, diseño y desarrollo sistemas cognitivos para asistir diversas areas profesionales y comerciales con alta demanda. ¿Por qué con alta demanda? Porque estos sistemas nos sirven para manejar altos niveles de consulta en tiempo real, automaticamente. Esto se puede lograr, gracias a los modelos generativos de lenguaje y las infraestructuras que acompañan estos modelos. Estas infraestructuras son las que permiten sostener a los modelos en un flujo continuo, donde pueden interactuar con informacion y servicios externos en tiempo real.  
+
+Teniendo en cuenta esto, solo hace falta imaginar donde puede sernos util una herramienta asi. En que procesos podria integrarse un sistema cognitivo que pueda: escuchar, analizar, planificar y ejecutar. Además, estos modelos nos permiten crean con mayor facilidad sistemas que, ademas de ser cognitivos, son totalmente interactivos. 
+
+Todo esto tiene el potencial de elevar la capacidad individual y colectiva como asi la de sus procesos, disminuyendo la brecha entre personas y tecnologia.  
+
+  

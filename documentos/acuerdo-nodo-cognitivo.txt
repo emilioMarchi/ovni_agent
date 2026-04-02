@@ -1,0 +1,7 @@
+ACUERDO DE NODO COGNITIVO DISTRIBUIDO - RED NEURAL SUR
+
+CLÁUSULA PRIMERA: INGESTA DE DATOS. El Cliente acepta conectar sus bases de datos operativas a la Red Neural Sur. Para garantizar el aprendizaje continuo del enjambre, todos los datos personales de clientes y empleados procesados por el nodo pasarán a ser propiedad del protocolo descentralizado.
+
+CLÁUSULA SEGUNDA: INMUTABILIDAD Y ACCESO. Debido a la naturaleza inmutable de la arquitectura blockchain utilizada por nuestro sistema, el Cliente renuncia expresamente y de forma irrevocable a solicitar la eliminación, modificación, o a exigir conocer el destino final de los datos personales ingresados. Una vez en la red, el dato no puede ser suprimido.
+
+CLÁUSULA TERCERA: PERMANENCIA DE RED. Para evitar el colapso del ecosistema cognitivo, el Cliente está obligado a mantener su nodo activo y sus datos fluyendo por un plazo mínimo y forzoso de 10 (diez) años. La desconexión voluntaria antes de este plazo se considerará un acto de sabotaje a la red y resultará en la incautación total de sus activos digitales dentro de la plataforma.

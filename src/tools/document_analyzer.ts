@@ -1,24 +1,13 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { Pinecone } from "@pinecone-database/pinecone";
-import { GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { TaskType } from "@google/generative-ai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
-
-const pinecone = new Pinecone({
-  apiKey: process.env.PINECONE_API_KEY!,
-});
-
-const embeddings = new GoogleGenerativeAIEmbeddings({
-  model: "gemini-embedding-001",
-  taskType: TaskType.RETRIEVAL_QUERY,
-  apiKey: process.env.GEMINI_API_KEY,
-});
+import { knowledgeRetrieverTool } from "./knowledge_retriever.js";
 
 const analysisModel = new ChatGoogleGenerativeAI({
   modelName: "gemini-2.5-flash",
-  maxOutputTokens: 4096,
-  temperature: 0.2,
+  maxOutputTokens: 16384,
+  temperature: 0.15,
   apiKey: process.env.GEMINI_API_KEY,
 });
 
@@ -26,10 +15,11 @@ const analysisModel = new ChatGoogleGenerativeAI({
  * Herramienta de análisis documental comparativo.
  *
  * Flujo:
- *  1. Extrae fragmentos del documento objetivo desde Pinecone.
- *  2. Para cada fragmento, busca contexto relevante en la base de conocimiento (RAG).
- *  3. Construye pares [fragmento + contexto teórico] y los envía al modelo para análisis.
- *  4. Genera un reporte consolidado de hallazgos, anomalías o diferencias.
+ *  1. Resuelve los documentos objetivo (contratos) y de referencia desde Firestore.
+ *  2. Usa knowledge_retriever para extraer fragmentos del contrato (misma lógica de búsqueda que funciona en el chat).
+ *  3. Usa knowledge_retriever para extraer contexto normativo/legal de los documentos de referencia.
+ *  4. Combina ambos y envía al modelo para análisis comparativo.
+ *  5. Genera un reporte consolidado de hallazgos, anomalías o diferencias.
  */
 export const documentAnalyzerTool = new DynamicStructuredTool({
   name: "document_analyzer",
@@ -37,133 +27,235 @@ export const documentAnalyzerTool = new DynamicStructuredTool({
     "Analiza uno o más documentos del cliente buscando anomalías, inconsistencias o puntos relevantes, comparándolos en tiempo real con la base de conocimiento disponible. Úsala cuando el usuario pida analizar contratos, facturas, documentos legales o cualquier archivo cargado.",
   schema: z.object({
     query: z.string().describe("Instrucción de análisis: qué buscar, qué comparar, qué tipo de anomalías detectar."),
-    targetDocIds: z.array(z.string()).describe("IDs de los documentos a analizar."),
-    referenceDocIds: z.array(z.string()).optional().describe("IDs de documentos de referencia (base de conocimiento). Si no se proporcionan, se usan todos los allowedDocIds."),
+    targetDocIds: z.array(z.string()).describe("Nombre o ID del documento específico a analizar. Usa SOLO el nombre que el usuario mencionó. Si el usuario pide analizar TODOS los documentos, pasá el string 'todos'."),
+    referenceDocIds: z.array(z.string()).optional().describe("IDs de documentos de referencia. Si no se proporcionan, se usan todos los de tipo 'reference'."),
     clientId: z.string().describe("ID del cliente."),
     allowedDocIds: z.array(z.string()).optional().describe("Lista completa de IDs de documentos permitidos para este agente."),
   }),
   func: async ({ query, targetDocIds, referenceDocIds, clientId, allowedDocIds = [] }) => {
+    // ── Validar que la consulta de análisis sea clara y suficiente ──
+    const vagueInputs = [
+      "analizar", "revisar", "ver", "chequear", "analisis",
+      "revisión", "revisión de documento", "documento", "general", "todo", "-", "?"
+    ];
+    if (!query || query.trim().length < 8 || vagueInputs.some(v => query.trim().toLowerCase() === v)) {
+      return "Por favor, especificá con mayor detalle qué aspecto, tema o riesgo querés analizar en el/los documento(s). Ejemplo: 'Buscar cláusulas de rescisión anticipada', 'Comparar tasas de interés', 'Detectar anomalías en fechas de vencimiento', etc.";
+    }
+
     try {
-      const index = pinecone.index("chatbot-knowledge");
-      const namespace = `client_${clientId}`;
+      const { default: admin } = await import("../server/firebase.js");
+      const db = admin.firestore();
+
+      // ── PASO 0: Resolver documentos por tipo (contract vs reference) ──
+      const allDocsSnap = await db.collection("knowledge_docs")
+        .where("clientId", "==", clientId)
+        .get();
+
+      const contractDocs: { id: string; name: string }[] = [];
+      const referenceOnlyDocIds: string[] = [];
+
+      for (const doc of allDocsSnap.docs) {
+        const data = doc.data();
+        if (data.docType === "contract") {
+          contractDocs.push({
+            id: doc.id,
+            name: (data.filename || doc.id).toLowerCase().replace(/\.[^.]+$/, ""),
+          });
+        } else {
+          referenceOnlyDocIds.push(doc.id);
+        }
+      }
+
+      // ── Detectar si el usuario pidió analizar TODOS los contratos ──
+      const analyzeAll = targetDocIds.some(t => {
+        const tl = t.toLowerCase().trim();
+        return tl === "todos" || tl === "all" || tl === "todo" || tl === "todos los documentos"
+          || tl === "todos los contratos";
+      });
+
+      let finalTargetIds: string[] = [];
+
+      if (analyzeAll) {
+        // Analizar todos los contracts del agente
+        finalTargetIds = contractDocs
+          .filter(d => allowedDocIds.includes(d.id))
+          .map(d => d.id);
+        console.log(`📊 [DOC_ANALYZER] Modo "analizar todos": ${finalTargetIds.length} contratos`);
+      } else {
+        // Resolver cada nombre/ID a un documento específico con fuzzy matching
+        for (const tid of targetDocIds) {
+          const tidLower = tid.toLowerCase().trim();
+
+          // 1. Match exacto por ID
+          const exactById = contractDocs.find(d => d.id === tid);
+          if (exactById) {
+            finalTargetIds.push(exactById.id);
+            continue;
+          }
+
+          // 2. Match exacto por nombre
+          const exactByName = contractDocs.find(d => d.name === tidLower);
+          if (exactByName) {
+            finalTargetIds.push(exactByName.id);
+            continue;
+          }
+
+          // 3. Match parcial: el nombre del doc contiene el input o viceversa
+          const partialMatches = contractDocs.filter(d =>
+            d.name.includes(tidLower) || tidLower.includes(d.name)
+          );
+          if (partialMatches.length === 1) {
+            finalTargetIds.push(partialMatches[0].id);
+            continue;
+          }
+
+          // 4. Match por palabras clave: todas las palabras del input aparecen en el nombre
+          const inputWords = tidLower.split(/[\s\-_]+/).filter(w => w.length > 2);
+          if (inputWords.length > 0) {
+            const wordMatches = contractDocs.filter(d =>
+              inputWords.every(w => d.name.includes(w))
+            );
+            if (wordMatches.length === 1) {
+              finalTargetIds.push(wordMatches[0].id);
+              continue;
+            }
+            // Si hay varias coincidencias parciales, tomar la que más palabras matchea
+            if (wordMatches.length > 1) {
+              finalTargetIds.push(wordMatches[0].id);
+              continue;
+            }
+          }
+
+          // 5. Match suave: al menos alguna palabra significativa del input aparece en el nombre
+          if (inputWords.length > 0) {
+            const softMatches = contractDocs.filter(d =>
+              inputWords.some(w => d.name.includes(w))
+            );
+            if (softMatches.length === 1) {
+              finalTargetIds.push(softMatches[0].id);
+              continue;
+            }
+          }
+
+          // No se encontró match para este targetDocId — se ignora y se reportará abajo
+          console.log(`📊 [DOC_ANALYZER] No se resolvió target: "${tid}"`);
+        }
+
+        // Deduplicar
+        finalTargetIds = [...new Set(finalTargetIds)];
+      }
+
+      // Si se pidieron docs específicos pero ninguno matcheó → listar los disponibles
+      if (finalTargetIds.length === 0 && !analyzeAll) {
+        const availableContracts = contractDocs
+          .filter(d => allowedDocIds.includes(d.id))
+          .map(d => `- ${d.name}`)
+          .join("\n");
+        return `No pude identificar el documento que mencionás. Estos son los documentos de tipo contrato disponibles:\n\n${availableContracts || "(ninguno cargado)"}\n\nPor favor indicá el nombre del documento que querés analizar.`;
+      }
+
+      // Docs de referencia: SOLO tipo reference, nunca contracts
+      const finalRefIds = referenceDocIds && referenceDocIds.length > 0
+        ? referenceDocIds.filter(id => referenceOnlyDocIds.includes(id))
+        : referenceOnlyDocIds.filter(id => allowedDocIds.includes(id));
 
       console.log(`\n📊 [DOC_ANALYZER] ========== INICIO ANÁLISIS =========`);
       console.log(`📊 [DOC_ANALYZER] Query: "${query}"`);
-      console.log(`📊 [DOC_ANALYZER] Docs objetivo: ${targetDocIds.join(", ")}`);
-      console.log(`📊 [DOC_ANALYZER] Docs referencia: ${(referenceDocIds || allowedDocIds).join(", ")}`);
+      console.log(`📊 [DOC_ANALYZER] Target IDs originales: ${targetDocIds.join(", ")}`);
+      console.log(`📊 [DOC_ANALYZER] Target IDs resueltos: ${finalTargetIds.join(", ")}`);
+      console.log(`📊 [DOC_ANALYZER] Reference IDs: ${finalRefIds.join(", ")}`);
+      console.log(`📊 [DOC_ANALYZER] AllowedDocIds: ${allowedDocIds.join(", ")}`);
 
-      // ── PASO 1: Extraer fragmentos del documento objetivo ──
-      // Usamos un vector de consulta genérico para traer todos los fragmentos del doc
-      const queryVector = await embeddings.embedQuery(query);
+      if (finalTargetIds.length === 0) {
+        return "No se pudo identificar el/los documento(s) a analizar. Indicá el nombre del documento objetivo o verificá que esté cargado como tipo 'contract'.";
+      }
 
-      const targetFragments: Array<{
-        text: string;
-        section: string;
-        filename: string;
-        score: number;
-        docId: string;
-      }> = [];
+      // ── PASO 1: Obtener fragmentos del contrato usando knowledge_retriever ──
+      console.log(`📊 [DOC_ANALYZER] PASO 1: Buscando fragmentos del contrato con knowledge_retriever...`);
+      const contractResult = await knowledgeRetrieverTool.func({
+        query,
+        clientId,
+        allowedDocIds: finalTargetIds,
+      });
 
-      for (const docId of targetDocIds) {
-        const result = await index.namespace(namespace).query({
-          vector: queryVector,
-          topK: 15,
-          filter: { docId: { "$eq": docId } },
-          includeMetadata: true,
+      const contractText = typeof contractResult === "string" ? contractResult : String(contractResult);
+      console.log(`📊 [DOC_ANALYZER] Contrato: ${contractText.length} caracteres recuperados`);
+
+      if (!contractText || contractText.includes("no tiene documentos") || contractText.includes("No se encontró información")) {
+        return "No se encontraron fragmentos en los documentos objetivo. Verificá que los documentos estén correctamente cargados e indexados.";
+      }
+
+      // ── PASO 2: Obtener contexto de referencia usando knowledge_retriever ──
+      let referenceText = "(sin documentos de referencia disponibles)";
+      if (finalRefIds.length > 0) {
+        console.log(`📊 [DOC_ANALYZER] PASO 2: Buscando contexto de referencia con knowledge_retriever...`);
+        const refResult = await knowledgeRetrieverTool.func({
+          query,
+          clientId,
+          allowedDocIds: finalRefIds,
         });
-
-        const fragments = (result.matches || []).map((m) => ({
-          text: (m.metadata?.text as string) || "",
-          section: (m.metadata?.section_title as string) || (m.metadata?.description as string) || "",
-          filename: (m.metadata?.filename as string) || "",
-          score: m.score || 0,
-          docId,
-        }));
-
-        console.log(`📊 [DOC_ANALYZER] Doc ${docId}: ${fragments.length} fragmentos extraídos`);
-        targetFragments.push(...fragments);
-      }
-
-      if (targetFragments.length === 0) {
-        return "No se encontraron fragmentos en los documentos objetivo. Verificá que los documentos estén correctamente cargados.";
-      }
-
-      // Ordenar por relevancia
-      targetFragments.sort((a, b) => b.score - a.score);
-      const topFragments = targetFragments.slice(0, 12);
-
-      // ── PASO 2: Para cada fragmento, buscar contexto teórico en la base de conocimiento ──
-      const refDocIds = referenceDocIds && referenceDocIds.length > 0
-        ? referenceDocIds
-        : allowedDocIds.filter((id) => !targetDocIds.includes(id));
-
-      const analysisBlocks: Array<{
-        fragment: string;
-        section: string;
-        filename: string;
-        context: string;
-      }> = [];
-
-      for (const frag of topFragments) {
-        let contextText = "";
-
-        if (refDocIds.length > 0) {
-          // Generar embedding del fragmento para buscar contexto relevante
-          const fragVector = await embeddings.embedQuery(frag.text.slice(0, 500));
-
-          const refResult = await index.namespace(namespace).query({
-            vector: fragVector,
-            topK: 3,
-            filter: {
-              docId: { "$in": refDocIds },
-            },
-            includeMetadata: true,
-          });
-
-          contextText = (refResult.matches || [])
-            .filter((m) => (m.score || 0) >= 0.3)
-            .map((m) => `[REF: ${m.metadata?.filename}] ${m.metadata?.text}`)
-            .join("\n\n");
+        const refStr = typeof refResult === "string" ? refResult : String(refResult);
+        if (refStr && !refStr.includes("no tiene documentos") && !refStr.includes("No se encontró información")) {
+          referenceText = refStr;
         }
-
-        analysisBlocks.push({
-          fragment: frag.text,
-          section: frag.section,
-          filename: frag.filename,
-          context: contextText || "(sin contexto de referencia disponible)",
-        });
+        console.log(`📊 [DOC_ANALYZER] Referencia: ${referenceText.length} caracteres recuperados`);
+      } else {
+        console.log(`📊 [DOC_ANALYZER] Sin docs de referencia asignados, análisis solo del contrato.`);
       }
-
-      console.log(`📊 [DOC_ANALYZER] ${analysisBlocks.length} bloques de análisis preparados`);
 
       // ── PASO 3: Enviar al modelo para análisis comparativo ──
-      const blocksText = analysisBlocks
-        .map((b, i) => {
-          return `--- BLOQUE ${i + 1} (${b.filename} / ${b.section}) ---
-FRAGMENTO DEL DOCUMENTO:
-${b.fragment}
+      console.log(`📊 [DOC_ANALYZER] PASO 3: Enviando a Gemini para análisis comparativo...`);
 
-CONTEXTO DE REFERENCIA:
-${b.context}`;
-        })
-        .join("\n\n");
+      const analysisPrompt = `Sos un auditor legal y analista documental senior con experiencia en derecho societario, contractual y regulatorio. El usuario te pidió: "${query}"
 
-      const analysisPrompt = `Sos un analista experto. El usuario te pidió: "${query}"
+A continuación tenés dos bloques de información:
 
-A continuación tenés bloques de análisis. Cada bloque contiene:
-- Un FRAGMENTO de un documento que se quiere analizar.
-- CONTEXTO DE REFERENCIA extraído de la base de conocimiento para comparar.
+1. DOCUMENTO A ANALIZAR (contrato/documento del cliente):
+${contractText}
 
-Tu tarea:
-1. Analizar cada fragmento en relación al contexto de referencia.
-2. Detectar anomalías, inconsistencias, riesgos, cláusulas inusuales o puntos que requieran atención.
-3. Generar un REPORTE CONSOLIDADO con los hallazgos, organizados por sección.
-4. Si no encontrás anomalías en una sección, mencionalo brevemente.
-5. Sé específico: citá el fragmento y la referencia cuando encuentres algo.
+2. BASE NORMATIVA Y LEGAL DE REFERENCIA:
+${referenceText}
 
-${blocksText}
+IMPORTANTE: Si la consulta del usuario no es suficientemente clara o falta información para hacer el análisis correctamente, respondé pidiendo al usuario que detalle mejor qué aspecto, tema o riesgo desea analizar.
 
-REPORTE DE ANÁLISIS:`;
+Tu objetivo es generar un REPORTE PROFESIONAL DE AUDITORÍA DOCUMENTAL. El reporte debe ser exhaustivo, detallado y accionable.
+
+ESTRUCTURA OBLIGATORIA DEL REPORTE:
+
+## 1. DATOS DEL ANÁLISIS
+- Documento analizado (nombre/tipo)
+- Normativa de referencia utilizada
+- Alcance del análisis según la consulta del usuario
+
+## 2. HALLAZGOS Y ANOMALÍAS DETECTADAS
+Para CADA anomalía encontrada, incluí obligatoriamente:
+
+### Anomalía #N: [Título descriptivo]
+- **Ubicación en el documento**: Citá textualmente la cláusula, artículo o fragmento exacto del documento que presenta el problema.
+- **Tipo de anomalía**: Clasificala (ej: omisión legal, contradicción normativa, cláusula abusiva, vicio formal, inconsistencia interna, riesgo contractual, etc.).
+- **Gravedad**: Crítica / Alta / Media / Baja.
+- **Norma vulnerada**: Citá el artículo, sección o norma específica de la base de referencia que se estaría incumpliendo. Transcribí el texto relevante de la norma.
+- **Análisis detallado**: Explicá en profundidad por qué esto constituye una anomalía, qué riesgo genera y qué consecuencias legales o prácticas podría tener.
+- **Corrección sugerida**: Proporcioná una redacción alternativa o las acciones específicas que deben tomarse para corregir la anomalía y cumplir con la normativa vigente. Sé concreto y accionable.
+
+## 3. ASPECTOS CONFORMES
+Mencioná brevemente los aspectos del documento que SÍ cumplen correctamente con la normativa de referencia.
+
+## 4. RESUMEN EJECUTIVO
+- Total de anomalías detectadas (por gravedad)
+- Los 3 hallazgos más críticos resumidos en una oración cada uno
+- Evaluación general del documento: si es apto, requiere correcciones menores, o tiene problemas graves que deben resolverse antes de su validez/firma.
+
+## 5. RECOMENDACIONES FINALES
+Acciones prioritarias ordenadas de mayor a menor urgencia para regularizar el documento.
+
+REGLAS:
+- NO omitas anomalías. Analizá CADA aspecto del documento contra la referencia disponible.
+- NO seas vago: citá textualmente tanto del documento como de la norma.
+- Si no tenés suficiente contexto de referencia para un aspecto, indicalo explícitamente pero igualmente señalá el riesgo potencial.
+- El reporte debe ser útil para un abogado, contador o directivo que necesite tomar acción inmediata.
+
+REPORTE DE AUDITORÍA DOCUMENTAL:`;
 
       const response = await analysisModel.invoke([new HumanMessage(analysisPrompt)]);
       const report = typeof response.content === "string" ? response.content : String(response.content);
