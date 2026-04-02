@@ -93,8 +93,60 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
 
     const sanitizedCheckpoint = this.stripTransientState(checkpoint);
 
+    // Truncamiento defensivo de mensajes y metadatos
+    function truncateString(str: string, maxLength = 10000): string {
+      if (typeof str !== 'string') return str;
+      return str.length > maxLength ? str.slice(0, maxLength) + '\n[TRUNCATED]' : str;
+    }
+
+    // Truncar mensajes muy largos en checkpoint
+    if (sanitizedCheckpoint && Array.isArray(sanitizedCheckpoint.channel_values?.messages)) {
+      sanitizedCheckpoint.channel_values.messages = sanitizedCheckpoint.channel_values.messages.map((msg) => {
+        if (msg && typeof msg === 'object' && typeof msg.content === 'string') {
+          return { ...msg, content: truncateString(msg.content, 12000) };
+        }
+        return msg;
+      });
+    }
+
+    // Truncar response_metadata y additional_kwargs si existen
+    if (sanitizedCheckpoint && Array.isArray(sanitizedCheckpoint.channel_values?.messages)) {
+      sanitizedCheckpoint.channel_values.messages = sanitizedCheckpoint.channel_values.messages.map((msg) => {
+        let patched = { ...msg };
+        if (patched.response_metadata && typeof patched.response_metadata === 'object') {
+          for (const k in patched.response_metadata) {
+            if (typeof patched.response_metadata[k] === 'string') {
+              patched.response_metadata[k] = truncateString(patched.response_metadata[k], 8000);
+            }
+          }
+        }
+        if (patched.additional_kwargs && typeof patched.additional_kwargs === 'object') {
+          for (const k in patched.additional_kwargs) {
+            if (typeof patched.additional_kwargs[k] === 'string') {
+              patched.additional_kwargs[k] = truncateString(patched.additional_kwargs[k], 8000);
+            }
+          }
+        }
+        return patched;
+      });
+    }
+
+    // Truncar metadata si es string
+    let safeMetadata: any = metadata;
+    if (typeof metadata === 'string') {
+      safeMetadata = truncateString(metadata, 12000);
+    } else if (metadata && typeof metadata === 'object') {
+      // Truncar campos string grandes en metadata (solo si tiene índice string)
+      safeMetadata = { ...metadata } as Record<string, any>;
+      for (const k of Object.keys(safeMetadata)) {
+        if (typeof safeMetadata[k] === 'string') {
+          safeMetadata[k] = truncateString(safeMetadata[k], 8000);
+        }
+      }
+    }
+
     const [serdeType, serializedCheckpoint] = this.serde.dumpsTyped(sanitizedCheckpoint);
-    const [metadataSerdeType, serializedMetadata] = this.serde.dumpsTyped(metadata);
+    const [metadataSerdeType, serializedMetadata] = this.serde.dumpsTyped(safeMetadata);
 
     // Convertir Uint8Array a string para Firestore
     const checkpointStr = typeof serializedCheckpoint === "string"
@@ -103,6 +155,13 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
     const metadataStr = typeof serializedMetadata === "string"
       ? serializedMetadata
       : new TextDecoder().decode(serializedMetadata);
+
+    // Log defensivo de tamaños
+    const checkpointSize = checkpointStr.length;
+    const metadataSize = metadataStr.length;
+    if (checkpointSize > 900000 || metadataSize > 900000) {
+      console.warn(`[CHECKPOINT] Tamaño grande detectado: checkpoint=${checkpointSize}, metadata=${metadataSize}`);
+    }
 
     await this.db.collection(this.collectionName).doc(thread_id).set({
       thread_id,
