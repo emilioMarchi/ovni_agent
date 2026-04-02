@@ -926,6 +926,13 @@
             <label class="form-label">Palabras Clave (opcional)</label>
             <input type="text" name="keywords" class="form-input" placeholder="precios, servicios, horarios...">
           </div>
+          <div class="form-group">
+            <label class="form-label">Tipo de Documento</label>
+            <select name="docType" class="form-input">
+              <option value="reference">Referencia (info general, manuales, FAQ)</option>
+              <option value="contract">Contrato (para análisis comparativo)</option>
+            </select>
+          </div>
           <div class="info-box" style="margin-top:20px; background: rgba(34, 197, 94, 0.1); border-color: var(--green)">
             <i data-lucide="zap" style="color: var(--green)"></i>
             <span style="color: var(--green)">El documento será fragmentado y vectorizado automáticamente para RAG usando Gemini 2.5 Flash.</span>
@@ -1023,6 +1030,10 @@
                 <label class="checkbox-item">
                   <input type="checkbox" name="functions" value="history_retriever" checked>
                   <span>history_retriever</span>
+                </label>
+                <label class="checkbox-item">
+                  <input type="checkbox" name="functions" value="document_analyzer">
+                  <span>document_analyzer</span>
                 </label>
               </div>
             </div>
@@ -2075,7 +2086,10 @@
               
               return `
                 <tr style="border-bottom:1px solid var(--border-hover)">
-                  <td style="padding:12px;font-weight:500">${d.filename}</td>
+                  <td style="padding:12px;font-weight:500">
+                    ${d.filename}
+                    ${d.docType === 'contract' ? '<span style="margin-left:6px;font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.25);text-transform:uppercase;font-weight:bold">contrato</span>' : ''}
+                  </td>
                   <td style="padding:12px">
                     <span class="badge" style="background:${statusBg};color:${statusColor};border:1px solid ${statusColor}44;padding:2px 8px;border-radius:4px;font-size:10px;text-transform:uppercase;font-weight:bold">
                       ${status === 'processing' ? '<i data-lucide="loader" style="width:10px;height:10px;animation:spin 1s linear infinite;display:inline-block;margin-right:4px"></i>' : ''}
