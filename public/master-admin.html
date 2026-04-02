@@ -1868,9 +1868,10 @@
 
     async function loadFoldersForAgentForm(clientId, selectedIds = []) {
       const container = document.getElementById('agent-knowledge-folders');
+      let folders = [];
       try {
         const data = await apiFetch(`/api/folders?clientId=${clientId}`);
-        const folders = data.data || [];
+        folders = data.data || [];
         
         if (folders.length === 0) {
           container.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-muted)">No hay carpetas creadas para este admin</div>';
@@ -1885,7 +1886,8 @@
         `).join('');
         lucide.createIcons();
       } catch (e) {
-        container.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--red)">Error al cargar carpetas</div>';
+        // Gracefully handle 404 (server not yet deployed) or other errors
+        container.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-muted)">Carpetas no disponibles</div>';
       }
     }
 
@@ -2095,12 +2097,13 @@
       try {
         const data = await apiFetch(`/api/folders?clientId=${clientId}`);
         currentFolders = data.data || [];
-        renderFolderChips();
-        loadFolderSelect();
-        document.getElementById('folders-toolbar').style.display = currentFolders.length > 0 || currentAdminId ? '' : 'none';
       } catch (e) {
         currentFolders = [];
       }
+      renderFolderChips();
+      loadFolderSelect();
+      const toolbar = document.getElementById('folders-toolbar');
+      if (toolbar) toolbar.style.display = currentFolders.length > 0 || currentAdminId ? '' : 'none';
     }
 
     function renderFolderChips() {
