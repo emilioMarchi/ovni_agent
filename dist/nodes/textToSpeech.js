@@ -41,7 +41,24 @@ export async function textToSpeechNode(state) {
             };
         }
         catch (err) {
-            console.error('❌ [TTS] Error generando audio:', err);
+            // Simplificar log de errores de ElevenLabs para no volcar el AxiosError completo
+            if (err?.response?.status === 401) {
+                const detail = err.response.data
+                    ? JSON.parse(Buffer.from(err.response.data).toString('utf-8'))
+                    : {};
+                if (detail?.detail?.status === 'quota_exceeded') {
+                    console.warn('⚠️ [TTS] Cuota de ElevenLabs excedida. El texto se enviará sin audio.');
+                }
+                else {
+                    console.warn(`⚠️ [TTS] ElevenLabs 401 Unauthorized: ${detail?.detail?.message || 'API key inválida o sin permisos'}`);
+                }
+            }
+            else if (err?.response?.status) {
+                console.error(`❌ [TTS] Error ${err.response.status} de ElevenLabs: ${err.message}`);
+            }
+            else {
+                console.error('❌ [TTS] Error generando audio:', err?.message || err);
+            }
         }
     }
     return {};
