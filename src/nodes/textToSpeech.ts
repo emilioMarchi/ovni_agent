@@ -3,41 +3,15 @@ import { textToSpeech } from '../services/elevenLabsTTSService.js';
 import { AgentStateType } from '../state/state.js';
 import { AIMessage } from '@langchain/core/messages';
 
-function condenseForSpeech(content: string): string {
-  const flattened = content
+function normalizeForSpeech(content: string): string {
+  return content
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/[*_`#]/g, ' ')
     .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+    .replace(/^\s*[-•]\s+/gm, '')
     .replace(/\n+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-
-  if (flattened.length <= 220) {
-    return flattened;
-  }
-
-  const sentences = flattened
-    .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
-
-  const selected: string[] = [];
-  let totalLength = 0;
-
-  for (const sentence of sentences) {
-    const nextLength = totalLength + sentence.length + (selected.length > 0 ? 1 : 0);
-    if (selected.length >= 2 || nextLength > 220) {
-      break;
-    }
-    selected.push(sentence);
-    totalLength = nextLength;
-  }
-
-  if (selected.length === 0) {
-    return `${flattened.slice(0, 200).trim()}.`;
-  }
-
-  return selected.join(' ');
 }
 
 /**
@@ -50,7 +24,7 @@ export async function textToSpeechNode(state: AgentStateType) {
   const lastMsg = state.messages[state.messages.length - 1];
   if (lastMsg instanceof AIMessage && typeof lastMsg.content === 'string' && lastMsg.content) {
     try {
-      const spokenText = condenseForSpeech(lastMsg.content);
+      const spokenText = normalizeForSpeech(lastMsg.content);
       const previousAssistantMessage = [...state.messages]
         .slice(0, -1)
         .reverse()
@@ -61,10 +35,20 @@ export async function textToSpeechNode(state: AgentStateType) {
         undefined,
         undefined,
         previousAssistantMessage instanceof AIMessage && typeof previousAssistantMessage.content === 'string'
-          ? condenseForSpeech(previousAssistantMessage.content)
+          ? normalizeForSpeech(previousAssistantMessage.content)
           : undefined,
       );
-      return { audioBuffer };
+
+      return {
+        messages: [new AIMessage({
+          content: spokenText,
+          additional_kwargs: lastMsg.additional_kwargs,
+          response_metadata: lastMsg.response_metadata,
+          id: lastMsg.id,
+          tool_calls: (lastMsg as any).tool_calls,
+        })],
+        audioBuffer,
+      };
     } catch (err) {
       console.error('❌ [TTS] Error generando audio:', err);
     }

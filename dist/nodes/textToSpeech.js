@@ -1,35 +1,15 @@
 // Nodo para Text-to-Speech en el grafo OVNI
 import { textToSpeech } from '../services/elevenLabsTTSService.js';
 import { AIMessage } from '@langchain/core/messages';
-function condenseForSpeech(content) {
-    const flattened = content
+function normalizeForSpeech(content) {
+    return content
         .replace(/```[\s\S]*?```/g, ' ')
         .replace(/[*_`#]/g, ' ')
         .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+        .replace(/^\s*[-•]\s+/gm, '')
         .replace(/\n+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
-    if (flattened.length <= 220) {
-        return flattened;
-    }
-    const sentences = flattened
-        .split(/(?<=[.!?])\s+/)
-        .map((sentence) => sentence.trim())
-        .filter(Boolean);
-    const selected = [];
-    let totalLength = 0;
-    for (const sentence of sentences) {
-        const nextLength = totalLength + sentence.length + (selected.length > 0 ? 1 : 0);
-        if (selected.length >= 2 || nextLength > 220) {
-            break;
-        }
-        selected.push(sentence);
-        totalLength = nextLength;
-    }
-    if (selected.length === 0) {
-        return `${flattened.slice(0, 200).trim()}.`;
-    }
-    return selected.join(' ');
 }
 /**
  * Si outputAudio es true, convierte el último mensaje del asistente a audio
@@ -41,15 +21,24 @@ export async function textToSpeechNode(state) {
     const lastMsg = state.messages[state.messages.length - 1];
     if (lastMsg instanceof AIMessage && typeof lastMsg.content === 'string' && lastMsg.content) {
         try {
-            const spokenText = condenseForSpeech(lastMsg.content);
+            const spokenText = normalizeForSpeech(lastMsg.content);
             const previousAssistantMessage = [...state.messages]
                 .slice(0, -1)
                 .reverse()
                 .find((message) => message instanceof AIMessage && typeof message.content === 'string' && message.content);
             const audioBuffer = await textToSpeech(spokenText, undefined, undefined, previousAssistantMessage instanceof AIMessage && typeof previousAssistantMessage.content === 'string'
-                ? condenseForSpeech(previousAssistantMessage.content)
+                ? normalizeForSpeech(previousAssistantMessage.content)
                 : undefined);
-            return { audioBuffer };
+            return {
+                messages: [new AIMessage({
+                        content: spokenText,
+                        additional_kwargs: lastMsg.additional_kwargs,
+                        response_metadata: lastMsg.response_metadata,
+                        id: lastMsg.id,
+                        tool_calls: lastMsg.tool_calls,
+                    })],
+                audioBuffer,
+            };
         }
         catch (err) {
             console.error('❌ [TTS] Error generando audio:', err);
