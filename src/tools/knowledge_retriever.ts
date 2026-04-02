@@ -83,17 +83,21 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       // 1. Generar embedding de la consulta
       const queryVector = await embeddings.embedQuery(query);
 
-      // 2. Capa 1: Filtrar documentos relevantes en el catálogo
-      // Nota: En la v2, mantenemos la lógica de 'document_catalog' para pre-filtrado si es necesario
-      const catalogResults = await index.namespace("document_catalog").query({
+      // 2. Capa 1: Traer todos los documentos permitidos y filtrar en memoria por docType
+      const catalogResultsRaw = await index.namespace("document_catalog").query({
         vector: queryVector,
-        topK: 8,
-        filter: { 
+        topK: 20,
+        filter: {
           clientId: { "$eq": clientId },
           docId: { "$in": allowedDocIds }
         },
         includeMetadata: true,
       });
+      // Filtrar en memoria: solo docType 'reference' o sin docType
+      const catalogResults = {
+        ...catalogResultsRaw,
+        matches: (catalogResultsRaw.matches || []).filter(m => !m.metadata?.docType || m.metadata?.docType === "reference")
+      };
 
       console.log(`🔍 [KNOWLEDGE] Capa 1 - Catálogo: ${catalogResults.matches.length} resultados`);
       for (const m of catalogResults.matches) {
@@ -124,27 +128,27 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
 
       console.log(`🔍 [KNOWLEDGE] Docs relevantes (score > 0.3): ${relevantDocIds.length > 0 ? relevantDocIds.join(", ") : "NINGUNO → fallback"}`);
 
+
       if (relevantDocIds.length === 0) {
         // Fallback: búsqueda más amplia pero SIEMPRE limitada a los docs del agente
-        const broaderFilter: Record<string, any> = { clientId: { "$eq": clientId } };
+        const broaderFilter: Record<string, any> = {
+          clientId: { "$eq": clientId }
+        };
         if (allowedDocIds.length > 0) {
           broaderFilter.docId = { "$in": allowedDocIds };
         }
 
         console.log(`🔍 [KNOWLEDGE] Fallback: búsqueda amplia en ${namespace}`);
-        const broaderSearch = await index.namespace(namespace).query({
+        const broaderSearchRaw = await index.namespace(namespace).query({
           vector: queryVector,
-          topK: 10,
+          topK: 20,
           filter: broaderFilter,
           includeMetadata: true,
         });
+        // Filtrar en memoria: solo docType 'reference' o sin docType
+        const broaderMatches = (broaderSearchRaw.matches || []).filter(m => !m.metadata?.docType || m.metadata?.docType === "reference");
 
-        console.log(`🔍 [KNOWLEDGE] Fallback: ${broaderSearch.matches?.length || 0} resultados`);
-        for (const m of (broaderSearch.matches || [])) {
-          console.log(`   📄 ${m.metadata?.filename} → score: ${(m.score || 0).toFixed(3)} | ${(m.metadata?.description as string || "").slice(0, 80)}`);
-        }
-        
-        if (!broaderSearch.matches || broaderSearch.matches.length === 0) {
+        if (!broaderMatches || broaderMatches.length === 0) {
           const productFallback = seemsProductQuery(query) ? await searchProductsFallback(query, clientId) : "";
           if (productFallback) {
             return `No encontré información clara en documentos, pero sí encontré esto en el catálogo estructurado:\n\n${productFallback}`;
@@ -152,7 +156,7 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
           return "No se encontró información relevante ni en los documentos autorizados ni en el catálogo estructurado.";
         }
         
-        return broaderSearch.matches
+        return broaderMatches
           .filter(m => (m.score || 0) >= 0.25)
           .map(m => `[DOC: ${m.metadata?.filename}] [SECCIÓN: ${m.metadata?.description}]:\n${m.metadata?.text}`)
           .join("\n\n---\n\n");
@@ -164,13 +168,15 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       const allFragments: Array<{ score: number; filename: string; description: string; section_title: string; text: string; docId: string }> = [];
 
       const docSearches = relevantDocIds.map(async (docId) => {
-        const result = await index.namespace(namespace).query({
+        const resultRaw = await index.namespace(namespace).query({
           vector: queryVector,
           topK: TOP_PER_DOC,
           filter: { docId: { "$eq": docId } },
           includeMetadata: true,
         });
-        return (result.matches || [])
+        // Filtrar en memoria: solo docType 'reference' o sin docType
+        return (resultRaw.matches || [])
+          .filter(m => !m.metadata?.docType || m.metadata?.docType === "reference")
           .filter(m => (m.score || 0) >= 0.20)
           .map(m => ({
             score: m.score || 0,
