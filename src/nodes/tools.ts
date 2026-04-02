@@ -29,6 +29,16 @@ function injectAllowedDocIds(message: any, state: AgentStateType): any {
           },
         };
       }
+      if (tc.name === "document_analyzer") {
+        return {
+          ...tc,
+          args: {
+            ...tc.args,
+            clientId: tc.args?.clientId || clientId,
+            allowedDocIds,
+          },
+        };
+      }
       return tc;
     });
 

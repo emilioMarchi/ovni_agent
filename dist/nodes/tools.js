@@ -25,6 +25,16 @@ function injectAllowedDocIds(message, state) {
                     },
                 };
             }
+            if (tc.name === "document_analyzer") {
+                return {
+                    ...tc,
+                    args: {
+                        ...tc.args,
+                        clientId: tc.args?.clientId || clientId,
+                        allowedDocIds,
+                    },
+                };
+            }
             return tc;
         });
         // Crear un nuevo AIMessage con las tool_calls parcheadas

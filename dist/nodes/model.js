@@ -45,6 +45,10 @@ export async function modelNode(state) {
             return true;
         if (skills.includes("history") && tool.name === "history_retriever")
             return true;
+        if (skills.includes("analysis") && tool.name === "document_analyzer")
+            return true;
+        if (skills.includes("analysis") && tool.name === "knowledge_retriever")
+            return true;
         return false;
     });
     const baseModel = new ChatGoogleGenerativeAI({

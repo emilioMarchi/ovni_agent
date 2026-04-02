@@ -49,6 +49,8 @@ export async function modelNode(state: AgentStateType) {
     if (skills.includes("calendar") && tool.name === "context_manager") return true;
     if (skills.includes("sales") && tool.name === "context_manager") return true;
     if (skills.includes("history") && tool.name === "history_retriever") return true;
+    if (skills.includes("analysis") && tool.name === "document_analyzer") return true;
+    if (skills.includes("analysis") && tool.name === "knowledge_retriever") return true;
 
     return false;
   });

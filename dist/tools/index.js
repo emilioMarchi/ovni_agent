@@ -5,6 +5,7 @@ import { commsSenderTool } from "./comms_sender.js";
 import { appointmentManagerTool } from "./appointment_manager.js";
 import { historyRetrieverTool } from "./history_retriever.js";
 import { contextManagerTool } from "./context_manager.js";
+import { documentAnalyzerTool } from "./document_analyzer.js";
 /**
  * Catálogo completo de herramientas disponibles para el Agente OVNI v2.
  */
@@ -16,7 +17,8 @@ export const tools = [
     appointmentManagerTool,
     historyRetrieverTool,
     contextManagerTool,
+    documentAnalyzerTool,
 ];
 // Re-exportar herramientas individuales
-export { knowledgeRetrieverTool, productCatalogTool, userProfileManagerTool, commsSenderTool, appointmentManagerTool, historyRetrieverTool, contextManagerTool, };
+export { knowledgeRetrieverTool, productCatalogTool, userProfileManagerTool, commsSenderTool, appointmentManagerTool, historyRetrieverTool, contextManagerTool, documentAnalyzerTool, };
 //# sourceMappingURL=index.js.map

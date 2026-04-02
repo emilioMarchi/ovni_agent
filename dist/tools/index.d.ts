@@ -5,6 +5,7 @@ import { commsSenderTool } from "./comms_sender.js";
 import { appointmentManagerTool } from "./appointment_manager.js";
 import { historyRetrieverTool } from "./history_retriever.js";
 import { contextManagerTool } from "./context_manager.js";
+import { documentAnalyzerTool } from "./document_analyzer.js";
 /**
  * Catálogo completo de herramientas disponibles para el Agente OVNI v2.
  */
@@ -329,5 +330,35 @@ export declare const tools: (import("@langchain/core/tools").DynamicStructuredTo
     agentId: string;
     query: string;
     userId: string;
+}, string> | import("@langchain/core/tools").DynamicStructuredTool<import("zod").ZodObject<{
+    query: import("zod").ZodString;
+    targetDocIds: import("zod").ZodArray<import("zod").ZodString, "many">;
+    referenceDocIds: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodString, "many">>;
+    clientId: import("zod").ZodString;
+    allowedDocIds: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodString, "many">>;
+}, "strip", import("zod").ZodTypeAny, {
+    clientId: string;
+    query: string;
+    targetDocIds: string[];
+    allowedDocIds?: string[] | undefined;
+    referenceDocIds?: string[] | undefined;
+}, {
+    clientId: string;
+    query: string;
+    targetDocIds: string[];
+    allowedDocIds?: string[] | undefined;
+    referenceDocIds?: string[] | undefined;
+}>, {
+    clientId: string;
+    query: string;
+    targetDocIds: string[];
+    allowedDocIds?: string[] | undefined;
+    referenceDocIds?: string[] | undefined;
+}, {
+    clientId: string;
+    query: string;
+    targetDocIds: string[];
+    allowedDocIds?: string[] | undefined;
+    referenceDocIds?: string[] | undefined;
 }, string>)[];
-export { knowledgeRetrieverTool, productCatalogTool, userProfileManagerTool, commsSenderTool, appointmentManagerTool, historyRetrieverTool, contextManagerTool, };
+export { knowledgeRetrieverTool, productCatalogTool, userProfileManagerTool, commsSenderTool, appointmentManagerTool, historyRetrieverTool, contextManagerTool, documentAnalyzerTool, };
