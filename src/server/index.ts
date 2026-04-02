@@ -10,6 +10,7 @@ import agentsRouter from "./routes/agents.js";
 import documentsRouter from "./routes/documents.js";
 import chatRouter from "./routes/chat.js";
 import meetingsRouter from "./routes/meetings.js";
+import tokensRouter from "./routes/tokens.js";
 import { validateClientFormat } from "./middleware/auth.js";
 import { normalizeAllowedDomains } from "./middleware/widgetSecurity.js";
 
@@ -113,6 +114,7 @@ app.use("/api/agents", agentsRouter);
 app.use("/api/documents", documentsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/meetings", meetingsRouter);
+app.use("/api/tokens", tokensRouter);
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error("Error no manejado:", err);
