@@ -1,0 +1,346 @@
+================================================================================
+  INSTRUCCIONES PARA FRONTEND - CHAT CON PANEL DE DEBUG
+  API OVNI Agent
+================================================================================
+
+BASE URL: https://ovni.com.ar/api   (o la que corresponda al entorno)
+
+
+================================================================================
+0. CONFIGURACIÓN INICIAL
+================================================================================
+
+Tanto el clientId como el agentId se leen de query params de la URL de la página:
+
+  https://tusite.com/demo?clientId=TU_CLIENT_ID&agentId=TU_AGENT_ID
+
+En JS:
+  const params = new URLSearchParams(window.location.search);
+  const clientId = params.get("clientId");  // se envía en header x-client-id
+  const agentId  = params.get("agentId");   // se envía en el body del POST
+
+Si falta alguno de los dos, mostrar error y no iniciar.
+El clientId va SIEMPRE como header "x-client-id" en TODAS las requests.
+
+
+================================================================================
+0B. AUTENTICACIÓN CON TOKEN (RECOMENDADO)
+================================================================================
+
+Si generaste un token de API desde el panel de administración, podés usarlo así:
+
+- En todas las requests a /api/agents/:id y /api/chat/invoke:
+    - Agregá el header:
+        Authorization: Bearer TU_TOKEN_GENERADO
+    - No hace falta el header x-client-id si usás el token, el backend lo resuelve solo.
+
+Ejemplo en JS:
+
+  const token = "a98ef523-7e9a-499b-9e8a-bd7df22d1c96";
+  const res = await fetch(`${BASE_URL}/api/agents/${agentId}`, {
+    headers: {
+      "Authorization": `Bearer ${token}`
+    }
+  });
+
+  // Para POST /api/chat/invoke igual:
+  const chatRes = await fetch(`${BASE_URL}/api/chat/invoke`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({ agentId, message, debug: true, threadId })
+  });
+
+Esto permite acceder a los agentes y al chat protegido desde el front demo sin exponer el clientId ni el password, solo con el token generado.
+
+
+================================================================================
+1. OBTENER DATOS DEL AGENTE
+================================================================================
+
+Endpoint:  GET /api/agents/:agentId
+Auth:      Header "x-client-id" con el clientId del admin (master)
+
+Ejemplo request:
+  GET /api/agents/abc123
+  Headers:
+    x-client-id: TU_CLIENT_ID
+
+Ejemplo response (200):
+  {
+    "success": true,
+    "data": {
+      "id": "abc123",
+      "name": "Eva",
+      "description": "Asistente comercial de OVNI",
+      "clientId": "client_001",
+      "skills": ["knowledge", "calendar", "sales", "analysis"],
+      "functions": ["knowledge_retriever", "appointment_manager", "product_catalog", "document_analyzer"],
+      "knowledgeDocs": ["doc1", "doc2"],
+      "knowledgeFolderIds": ["folder1"],
+      "systemInstruction": "Sos Eva, asistente...",
+      "businessContext": "OVNI es una empresa de...",
+      "type": "assistant",
+      "profile": { ... }
+    }
+  }
+
+Campos útiles para la UI:
+  - data.name           → Nombre del agente (para el header del chat)
+  - data.description    → Descripción corta
+  - data.skills         → Habilidades activas (para mostrar badges)
+  - data.functions      → Tools disponibles (para mostrar en panel técnico)
+  - data.knowledgeDocs  → Cantidad de docs asignados
+
+
+================================================================================
+2. ENVIAR MENSAJE CON DEBUG
+================================================================================
+
+Endpoint:  POST /api/chat/invoke
+Auth:      Header "x-client-id" con el clientId (puede ser el del admin o el que corresponda)
+           O bien usar el sistema de widget-token si está habilitado.
+
+Body (JSON):
+  {
+    "agentId": "abc123",           // REQUERIDO - ID del agente
+    "message": "texto del usuario", // REQUERIDO (o audio)
+    "debug": true,                  // ACTIVAR modo debug
+    "threadId": "uuid-anterior",    // OPCIONAL - para continuar conversación
+    "clientId": "client_001"        // OPCIONAL - se resuelve automáticamente del agentId
+  }
+
+Headers:
+  Content-Type: application/json
+  x-client-id: TU_CLIENT_ID
+
+
+--- RESPONSE SIN DEBUG (debug: false o ausente) ---
+
+  {
+    "success": true,
+    "data": {
+      "agentId": "abc123",
+      "response": "Hola, soy Eva. ¿En qué puedo ayudarte?",
+      "threadId": "550e8400-e29b-41d4-a716-446655440000"
+    }
+  }
+
+
+--- RESPONSE CON DEBUG (debug: true) ---
+
+  {
+    "success": true,
+    "data": {
+      "agentId": "abc123",
+      "response": "Según el contrato MSA de Global Tech...",
+      "threadId": "550e8400-e29b-41d4-a716-446655440000",
+      "_debug": [
+        {
+          "node": "config",
+          "timestamp": "2026-04-02T15:30:00.000Z",
+          "type": "agent_loaded",
+          "data": {
+            "agentId": "abc123",
+            "agentName": "Eva",
+            "clientId": "client_001",
+            "organizationName": "OVNI",
+            "skills": ["knowledge", "calendar", "sales", "analysis"],
+            "functions": ["knowledge_retriever", "appointment_manager", "product_catalog", "document_analyzer"],
+            "knowledgeDocs": 5,
+            "knowledgeFolderIds": 2,
+            "resolvedDocIds": 12,
+            "allowedDocIds": ["doc1", "doc2", "doc3", ...]
+          }
+        },
+        {
+          "node": "model",
+          "timestamp": "2026-04-02T15:30:01.200Z",
+          "type": "llm_decision",
+          "data": {
+            "allowedTools": ["knowledge_retriever", "appointment_manager", "product_catalog", "document_analyzer", "context_manager"],
+            "toolCalls": [
+              { "name": "knowledge_retriever", "args": { "query": "contrato MSA Global Tech", "clientId": "client_001" } }
+            ],
+            "respondedDirectly": false
+          }
+        },
+        {
+          "node": "tools",
+          "timestamp": "2026-04-02T15:30:01.300Z",
+          "type": "tool_call",
+          "data": {
+            "name": "knowledge_retriever",
+            "args": { "query": "contrato MSA Global Tech", "clientId": "client_001", "allowedDocIds": ["doc1", "doc2"] },
+            "id": "call_abc123"
+          }
+        },
+        {
+          "node": "knowledge_retriever",
+          "timestamp": "2026-04-02T15:30:02.000Z",
+          "type": "catalog_search",
+          "data": {
+            "query": "contrato MSA Global Tech",
+            "namespace": "client_client_001",
+            "allowedDocIds": ["doc1", "doc2", "doc3"],
+            "results": [
+              { "docId": "doc1", "filename": "MSA-V4-GLOBAL-TECH.txt", "score": 0.8723, "description": "Contrato Marco de Servicios..." },
+              { "docId": "doc2", "filename": "contrato-adhesion-1.txt", "score": 0.4512, "description": "Contrato de adhesión..." }
+            ]
+          }
+        },
+        {
+          "node": "knowledge_retriever",
+          "timestamp": "2026-04-02T15:30:03.500Z",
+          "type": "fragment_selection",
+          "data": {
+            "totalFragments": 18,
+            "bestScore": 0.8921,
+            "dynamicThreshold": 0.4461,
+            "selected": [
+              {
+                "docId": "doc1",
+                "filename": "MSA-V4-GLOBAL-TECH.txt",
+                "section": "Cláusula 4 - Condiciones de pago",
+                "score": 0.8921,
+                "textPreview": "El Cliente abonará los servicios dentro de los 30 días..."
+              },
+              {
+                "docId": "doc1",
+                "filename": "MSA-V4-GLOBAL-TECH.txt",
+                "section": "Cláusula 7 - Rescisión",
+                "score": 0.7234,
+                "textPreview": "Cualquiera de las partes podrá rescindir..."
+              }
+            ],
+            "discarded": 8
+          }
+        },
+        {
+          "node": "tools",
+          "timestamp": "2026-04-02T15:30:03.600Z",
+          "type": "tool_result",
+          "data": {
+            "name": "knowledge_retriever",
+            "tool_call_id": "call_abc123",
+            "contentPreview": "[DOC: MSA-V4-GLOBAL-TECH.txt] [SECCIÓN: Cláusula 4 - Condiciones de pago]:\nEl Cliente abonará..."
+          }
+        }
+      ]
+    }
+  }
+
+
+================================================================================
+3. TIPOS DE EVENTOS EN _debug
+================================================================================
+
+Cada evento tiene: { node, timestamp, type, data }
+
+TIPO                    | NODO                  | DESCRIPCIÓN
+------------------------|-----------------------|------------------------------------------
+agent_loaded            | config                | Configuración del agente cargada de Firestore.
+                        |                       | data.allowedDocIds = docs que puede consultar
+                        |                       | data.skills, data.functions = qué puede hacer
+                        |                       |
+llm_decision            | model                 | Qué decidió hacer el modelo.
+                        |                       | data.toolCalls = herramientas que eligió usar
+                        |                       | data.respondedDirectly = true si contestó sin tools
+                        |                       | data.responsePreview = preview si respondió directo
+                        |                       |
+tool_call               | tools                 | Detalle de cada herramienta ejecutada.
+                        |                       | data.name = nombre de la tool
+                        |                       | data.args = argumentos enviados
+                        |                       |
+catalog_search          | knowledge_retriever   | Búsqueda en el catálogo de documentos (Capa 1).
+                        |                       | data.results = docs encontrados con score
+                        |                       |
+fragment_selection      | knowledge_retriever   | Fragmentos seleccionados del contenido (Capa 2).
+                        |                       | data.selected = fragmentos con score y preview
+                        |                       | data.discarded = cuántos se descartaron
+                        |                       |
+tool_result             | tools                 | Resultado devuelto por la herramienta.
+                        |                       | data.contentPreview = primeros 500 chars del resultado
+
+
+================================================================================
+4. FLUJO SUGERIDO PARA LA UI
+================================================================================
+
+A) INICIALIZACIÓN:
+   1. Llamar GET /api/agents/:agentId para obtener datos del agente
+   2. Montar header con nombre, descripción, skills como badges
+   3. Inicializar threadId = null (se genera en primera invocación)
+
+B) CADA MENSAJE:
+   1. Mostrar mensaje del usuario en el chat (lado derecho)
+   2. Mostrar spinner en chat + spinner en panel debug
+   3. POST /api/chat/invoke con { agentId, message, debug: true, threadId }
+   4. GUARDAR threadId de la response para el siguiente mensaje
+   5. Mostrar response.data.response en el chat (lado izquierdo)
+   6. Renderizar response.data._debug en el panel técnico:
+      - "agent_loaded"         → Sección "Configuración del agente"
+      - "llm_decision"         → Sección "Decisión del modelo" (qué tools eligió)
+      - "catalog_search"       → Sección "Documentos encontrados" (tabla con nombre + score)
+      - "fragment_selection"    → Sección "Fragmentos seleccionados" (cards con sección + score + preview)
+      - "tool_result"          → Sección "Resultado de la herramienta"
+
+C) NOTAS:
+   - threadId mantiene el contexto de conversación (memoria). Guardalo y reenvialo.
+   - _debug es un ARRAY ordenado cronológicamente.
+   - Puede haber MÚLTIPLES ciclos model→tools si el agente usa varias herramientas.
+   - Si el modelo responde directo (sin tools), _debug tendrá solo agent_loaded + llm_decision.
+   - Si respondedDirectly=true, data.responsePreview tiene un preview de la respuesta.
+
+
+================================================================================
+5. EJEMPLO FETCH EN JS
+================================================================================
+
+// 1. Cargar datos del agente
+const agentRes = await fetch(`${BASE_URL}/api/agents/${agentId}`, {
+  headers: { "x-client-id": clientId }
+});
+const agent = (await agentRes.json()).data;
+
+// 2. Enviar mensaje con debug
+let threadId = null;
+
+async function sendMessage(text) {
+  const res = await fetch(`${BASE_URL}/api/chat/invoke`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-client-id": clientId
+    },
+    body: JSON.stringify({
+      agentId,
+      message: text,
+      debug: true,
+      threadId    // null en el primer mensaje, luego el que devuelve el server
+    })
+  });
+
+  const { data } = await res.json();
+
+  threadId = data.threadId;  // GUARDAR para el siguiente mensaje
+
+  // data.response     → texto para el chat
+  // data._debug       → array de eventos para el panel técnico
+
+  return data;
+}
+
+
+================================================================================
+6. ERRORES POSIBLES
+================================================================================
+
+400 → { success: false, error: "agentId y message o audio son requeridos" }
+401 → Falta x-client-id header
+403 → Acceso denegado (clientId inválido)
+404 → Agente no encontrado (solo en GET /api/agents/:id)
+429 → Rate limit excedido (widget)
+500 → Error interno del servidor

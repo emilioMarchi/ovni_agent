@@ -8,9 +8,10 @@ import { invalidateAgentConfigCache } from "../../nodes/config.js";
 const router = Router();
 const db = admin.firestore();
 
-router.use(tokenOrFallback(masterAuth));
 
-router.get("/", async (req: AuthenticatedRequest, res: Response) => {
+
+// Protegido: requiere auth
+router.get("/", tokenOrFallback(masterAuth), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { clientId } = req.query;
     
@@ -33,20 +34,40 @@ router.get("/", async (req: AuthenticatedRequest, res: Response) => {
   }
 });
 
-router.get("/:id", async (req: Request, res: Response) => {
-  try {
-    const doc = await db.collection("agents").doc(req.params.id).get();
-    if (!doc.exists) {
-      return res.status(404).json({ success: false, error: "Agente no encontrado" });
+// GET /api/agents/:id
+// Si viene ?demo=true, permite acceso público (sin header x-client-id ni token)
+router.get("/:id", async (req: Request, res: Response, next) => {
+  const isDemo = req.query.demo === "true" || req.query.demo === "1";
+  if (isDemo) {
+    // Demo mode: acceso público
+    try {
+      const doc = await db.collection("agents").doc(req.params.id).get();
+      if (!doc.exists) {
+        return res.status(404).json({ success: false, error: "Agente no encontrado" });
+      }
+      return res.json({ success: true, data: { id: doc.id, ...doc.data() } });
+    } catch (error) {
+      console.error("Error fetching agent:", error);
+      return res.status(500).json({ success: false, error: "Error al obtener agente" });
     }
-    res.json({ success: true, data: { id: doc.id, ...doc.data() } });
-  } catch (error) {
-    console.error("Error fetching agent:", error);
-    res.status(500).json({ success: false, error: "Error al obtener agente" });
   }
+  // Si no es demo, usar tokenOrFallback(masterAuth)
+  return tokenOrFallback(masterAuth)(req, res, async () => {
+    try {
+      const doc = await db.collection("agents").doc(req.params.id).get();
+      if (!doc.exists) {
+        return res.status(404).json({ success: false, error: "Agente no encontrado" });
+      }
+      res.json({ success: true, data: { id: doc.id, ...doc.data() } });
+    } catch (error) {
+      console.error("Error fetching agent:", error);
+      res.status(500).json({ success: false, error: "Error al obtener agente" });
+    }
+  });
 });
 
-router.post("/", async (req: Request, res: Response) => {
+// Protegido: requiere auth
+router.post("/", tokenOrFallback(masterAuth), async (req: Request, res: Response) => {
   try {
     const {
       clientId,

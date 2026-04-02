@@ -53,6 +53,7 @@ interface ChatRequest {
   metadata?: Record<string, unknown>;
   endSession?: boolean;
   widgetToken?: string;
+  debug?: boolean;
 }
 
 router.post("/widget-token", widgetReadRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
@@ -85,7 +86,7 @@ router.post("/widget-token", widgetReadRateLimit, widgetAccessGuard, async (req:
 
 router.post("/invoke", widgetWriteRateLimit, authGuard, async (req: Request, res: Response) => {
   try {
-    const { agentId, message, audio, audioMimeType, outputAudio, threadId, clientId: bodyClientId, endSession } = req.body as ChatRequest;
+    const { agentId, message, audio, audioMimeType, outputAudio, threadId, clientId: bodyClientId, endSession, debug } = req.body as ChatRequest;
 
     if (!agentId || (!message && !audio)) {
       return res.status(400).json({ 
@@ -126,6 +127,7 @@ router.post("/invoke", widgetWriteRateLimit, authGuard, async (req: Request, res
       contextHistory: [],
       contextQuery: message || "",
       fastPath: isSimpleInputWithoutIntent(message),
+      debugMode: !!debug,
     };
 
     if (audio) {
@@ -159,12 +161,17 @@ router.post("/invoke", widgetWriteRateLimit, authGuard, async (req: Request, res
     const lastMessage = result.messages[result.messages.length - 1];
 
     const responseData: Record<string, unknown> = {
+      agentId,
       response: lastMessage.content,
       threadId: config.configurable.thread_id,
     };
 
     if (result.audioBuffer) {
       responseData.audioBase64 = (result.audioBuffer as Buffer).toString("base64");
+    }
+
+    if (debug && result.debugTrace) {
+      responseData._debug = result.debugTrace;
     }
 
     res.json({ success: true, data: responseData });

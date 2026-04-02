@@ -2,6 +2,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { tools } from "../tools/index.js";
 import { AgentStateType } from "../state/state.js";
 import { AIMessage } from "@langchain/core/messages";
+import { drainDebugEvents, pushDebugEvent } from "../utils/debugCollector.js";
 
 /**
  * Nodo de Herramientas: Ejecuta automáticamente las llamadas a herramientas
@@ -142,6 +143,40 @@ export async function toolNodeWithLogs(state: AgentStateType) {
   const lastResult = result.messages[result.messages.length - 1];
   if (lastResult) {
     console.log("🔧 [TOOLS] Resultado:", (lastResult.content as string)?.substring(0, 300));
+  }
+
+  // Drain debug events from collector into state if debug mode is on
+  if (state.debugMode) {
+    const toolCallEvents: Record<string, unknown>[] = [];
+    // Capture tool call summaries from the patchedMessage
+    if (patchedMessage.tool_calls) {
+      for (const tc of patchedMessage.tool_calls) {
+        toolCallEvents.push({
+          node: "tools",
+          timestamp: new Date().toISOString(),
+          type: "tool_call",
+          data: { name: tc.name, args: tc.args, id: tc.id },
+        });
+      }
+    }
+    // Capture tool results
+    for (const msg of result.messages) {
+      if ((msg as any).name) {
+        toolCallEvents.push({
+          node: "tools",
+          timestamp: new Date().toISOString(),
+          type: "tool_result",
+          data: {
+            name: (msg as any).name,
+            tool_call_id: (msg as any).tool_call_id,
+            contentPreview: (msg.content as string)?.substring(0, 500),
+          },
+        });
+      }
+    }
+    // Drain collector events (from knowledge_retriever, etc.)
+    const collectorEvents = drainDebugEvents();
+    result.debugTrace = [...toolCallEvents, ...collectorEvents];
   }
   
   return result;

@@ -3,6 +3,7 @@ import { AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages"
 import { AgentStateType } from "../state/state.js";
 import { tools } from "../tools/index.js";
 import { SystemInstructionBuilder } from "../utils/SystemInstructionBuilder.js";
+import { pushDebugEvent, drainDebugEvents } from "../utils/debugCollector.js";
 
 export async function modelNode(state: AgentStateType) {
   const { messages, functions, skills } = state;
@@ -87,13 +88,38 @@ export async function modelNode(state: AgentStateType) {
     console.log(`💬 Eva decidió responder directamente.`);
   }
 
+  // Emit debug event for model decision
+  if (state.debugMode) {
+    pushDebugEvent({
+      node: "model",
+      timestamp: new Date().toISOString(),
+      type: "llm_decision",
+      data: {
+        allowedTools: allowedTools.map(t => t.name),
+        toolCalls: response?.tool_calls?.map((tc: any) => ({ name: tc.name, args: tc.args })) || [],
+        respondedDirectly: !response?.tool_calls?.length,
+        responsePreview: !response?.tool_calls?.length ? (response.content as string)?.substring(0, 300) : undefined,
+      },
+    });
+  }
+
   if (!response || typeof response !== "object" || !("content" in response)) {
     return {
       messages: [new AIMessage("Lo siento, no se pudo obtener una respuesta válida del modelo.")],
     };
   }
 
-  return {
+  const modelReturn: Record<string, unknown> = {
     messages: [response],
   };
+
+  // If debug mode and no tool calls (direct response), drain events now
+  if (state.debugMode) {
+    const events = drainDebugEvents();
+    if (events.length > 0) {
+      modelReturn.debugTrace = events;
+    }
+  }
+
+  return modelReturn;
 }

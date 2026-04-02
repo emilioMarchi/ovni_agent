@@ -4,6 +4,7 @@ import { Pinecone } from "@pinecone-database/pinecone";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TaskType } from "@google/generative-ai";
 import admin from "firebase-admin";
+import { pushDebugEvent } from "../utils/debugCollector.js";
 
 const pinecone = new Pinecone({
   apiKey: process.env.PINECONE_API_KEY!,
@@ -98,6 +99,23 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       for (const m of catalogResults.matches) {
         console.log(`   📑 ${m.metadata?.filename} (${m.metadata?.docId}) → score: ${(m.score || 0).toFixed(3)}`);
       }
+
+      pushDebugEvent({
+        node: "knowledge_retriever",
+        timestamp: new Date().toISOString(),
+        type: "catalog_search",
+        data: {
+          query,
+          namespace,
+          allowedDocIds,
+          results: catalogResults.matches.map(m => ({
+            docId: m.metadata?.docId,
+            filename: m.metadata?.filename,
+            score: +(m.score || 0).toFixed(4),
+            description: (m.metadata?.description as string || "").slice(0, 120),
+          })),
+        },
+      });
 
       const relevantDocIds = catalogResults.matches
         .filter(m => (m.score || 0) > 0.3)
@@ -203,6 +221,25 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
       for (const f of topFragments) {
         console.log(`   ✅ score=${f.score.toFixed(3)} | ${f.filename} → ${f.description.slice(0, 60)}`);
       }
+
+      pushDebugEvent({
+        node: "knowledge_retriever",
+        timestamp: new Date().toISOString(),
+        type: "fragment_selection",
+        data: {
+          totalFragments: allFragments.length,
+          bestScore: +bestScore.toFixed(4),
+          dynamicThreshold: +dynamicThreshold.toFixed(4),
+          selected: topFragments.map(f => ({
+            docId: f.docId,
+            filename: f.filename,
+            section: f.section_title || f.description,
+            score: +f.score.toFixed(4),
+            textPreview: f.text.slice(0, 200),
+          })),
+          discarded: allFragments.filter(f => f.score < dynamicThreshold).length,
+        },
+      });
 
       return topFragments
         .map(f => {

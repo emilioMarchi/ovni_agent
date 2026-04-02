@@ -174,6 +174,23 @@ export const AgentState = Annotation.Root({
     reducer: (old, newest) => newest ?? old,
     default: () => false,
   }),
+
+  /**
+   * Traza de debug: acumula eventos internos del grafo para inspección.
+   * Solo se popula cuando el request viene con debug: true.
+   */
+  debugTrace: Annotation<Array<Record<string, unknown>>>({
+    reducer: (old, newest) => [...(old || []), ...(newest || [])],
+    default: () => [],
+  }),
+
+  /**
+   * Flag para activar la recolección de debug trace.
+   */
+  debugMode: Annotation<boolean>({
+    reducer: (old, newest) => newest ?? old,
+    default: () => false,
+  }),
 });
 
 /**

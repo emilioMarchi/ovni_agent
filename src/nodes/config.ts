@@ -2,6 +2,7 @@ import admin from "firebase-admin";
 import { AgentStateType } from "../state/state.js";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { resolveAllowedDocIds } from "../utils/folderScopeResolver.js";
+import { setActiveThread, pushDebugEvent } from "../utils/debugCollector.js";
 
 const AGENT_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 const agentConfigCache = new Map<string, { value: Record<string, unknown>; expiresAt: number }>();
@@ -92,8 +93,30 @@ export async function configNode(state: AgentStateType, _: any, config?: Runnabl
 
     console.log(`🔧 [CONFIG] Scope resuelto: ${resolvedDocIds.length} docs (${agentData.knowledgeDocs?.length || 0} sueltos + ${agentData.knowledgeFolderIds?.length || 0} carpetas)`);
 
+    // Activate debug thread if needed
+    if (state.debugMode) {
+      setActiveThread(threadId);
+      pushDebugEvent({
+        node: "config",
+        timestamp: new Date().toISOString(),
+        type: "agent_loaded",
+        data: {
+          agentId,
+          agentName: agentData.name || "",
+          clientId: resolvedClientId,
+          organizationName,
+          skills: agentData.skills || [],
+          functions: agentData.functions || [],
+          knowledgeDocs: agentData.knowledgeDocs?.length || 0,
+          knowledgeFolderIds: agentData.knowledgeFolderIds?.length || 0,
+          resolvedDocIds: resolvedDocIds.length,
+          allowedDocIds: resolvedDocIds,
+        },
+      });
+    }
+
     // Devolvemos las actualizaciones al estado
-    const hydratedConfig = {
+    const hydratedConfig: Record<string, unknown> = {
       clientId: resolvedClientId,
       agentName: agentData.name || "",
       agentDescription: agentData.description || "",
@@ -104,6 +127,12 @@ export async function configNode(state: AgentStateType, _: any, config?: Runnabl
       skills: agentData.skills || [],
       functions: agentData.functions || [],
     };
+
+    // Include config debug event in the state trace
+    if (state.debugMode) {
+      const { drainDebugEvents } = await import("../utils/debugCollector.js");
+      hydratedConfig.debugTrace = drainDebugEvents();
+    }
 
     agentConfigCache.set(agentId, {
       value: hydratedConfig,
