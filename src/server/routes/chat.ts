@@ -4,8 +4,10 @@ import { graph } from "../../graph/index.js";
 import admin from "../firebase.js";
 import { speechToText } from "../../services/speechToTextService.js";
 import { createRateLimitMiddleware, isWidgetTokenProtectionEnabled, issueWidgetToken, resolveClientId, widgetAccessGuard } from "../middleware/widgetSecurity.js";
+import { tokenOrFallback } from "../middleware/tokenAuth.js";
 
 const router = Router();
+const authGuard = tokenOrFallback(widgetAccessGuard);
 const db = admin.firestore();
 
 const widgetReadRateLimit = createRateLimitMiddleware({
@@ -81,7 +83,7 @@ router.post("/widget-token", widgetReadRateLimit, widgetAccessGuard, async (req:
   }
 });
 
-router.post("/invoke", widgetWriteRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
+router.post("/invoke", widgetWriteRateLimit, authGuard, async (req: Request, res: Response) => {
   try {
     const { agentId, message, audio, audioMimeType, outputAudio, threadId, clientId: bodyClientId, endSession } = req.body as ChatRequest;
 
@@ -172,7 +174,7 @@ router.post("/invoke", widgetWriteRateLimit, widgetAccessGuard, async (req: Requ
   }
 });
 
-router.post("/stream", widgetWriteRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
+router.post("/stream", widgetWriteRateLimit, authGuard, async (req: Request, res: Response) => {
   try {
     const { agentId, message, threadId, clientId: bodyClientId } = req.body as ChatRequest;
 
@@ -237,7 +239,7 @@ router.post("/stream", widgetWriteRateLimit, widgetAccessGuard, async (req: Requ
 });
 
 // Endpoint para marcar la sesión como terminada sin invocar el modelo
-router.post("/end-session", widgetWriteRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
+router.post("/end-session", widgetWriteRateLimit, authGuard, async (req: Request, res: Response) => {
   try {
     const { agentId, clientId: bodyClientId, threadId } = req.body;
     if (!agentId || !threadId) {
@@ -267,7 +269,7 @@ router.post("/end-session", widgetWriteRateLimit, widgetAccessGuard, async (req:
   }
 });
 
-router.get("/history/:threadId", widgetReadRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
+router.get("/history/:threadId", widgetReadRateLimit, authGuard, async (req: Request, res: Response) => {
   try {
     const { threadId } = req.params;
     
@@ -395,7 +397,7 @@ router.get("/sessions/:threadId", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/agents", widgetReadRateLimit, widgetAccessGuard, async (req: Request, res: Response) => {
+router.get("/agents", widgetReadRateLimit, authGuard, async (req: Request, res: Response) => {
   try {
     const clientId = (res.locals.resolvedClientId as string) || (req.query.clientId as string | undefined);
     

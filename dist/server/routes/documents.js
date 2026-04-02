@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { masterAuth } from "../middleware/auth.js";
+import { tokenOrFallback } from "../middleware/tokenAuth.js";
 import { processAndIngestDocument } from "../../utils/documentIngestor.js";
 const router = Router();
 const db = admin.firestore();
@@ -41,7 +42,7 @@ const upload = multer({
         }
     },
 });
-router.use(masterAuth);
+router.use(tokenOrFallback(masterAuth));
 // Listar documentos de un cliente
 router.get("/", async (req, res) => {
     try {

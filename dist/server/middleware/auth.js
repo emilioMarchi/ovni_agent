@@ -31,27 +31,22 @@ export function getMasterClientId() {
  */
 export function validateClientFormat(req, res, next) {
     const clientId = req.headers["x-client-id"];
-    // Rutas exentas de validación de client-id (health, auth master, callbacks oauth, confirmación de reuniones por URL params)
+    // Rutas exentas de toda validación
     if (req.path === "/health" || req.path.startsWith("/api/auth") || req.path.includes("/google-calendar/callback") || req.method === "OPTIONS") {
         next();
         return;
     }
-    // Excepción para rutas de confirmación de reunión que usan ID en URL param, no header
     if (req.path.includes("/confirm") || req.path.includes("/reject")) {
         next();
         return;
     }
+    // Si no hay x-client-id, pasar: cada ruta tiene su propio middleware de auth
+    // (masterAuth, widgetAccessGuard, tokenOrFallback) que decidirá si rechazar o no.
     if (!clientId) {
-        // Si es una ruta que debería tener client-id pero no lo tiene
-        // (Ajustar según necesidad, algunas rutas públicas podrían no requerirlo)
-        if (req.path.startsWith("/api/chat") || req.path.startsWith("/api/agents")) {
-            res.status(400).json({ error: "Falta x-client-id header requerido para esta operación." });
-            return;
-        }
         next();
         return;
     }
-    // Regex permisivo para UUIDs y strings tipo "org_..."
+    // Si hay x-client-id, sanitizar formato contra inyección
     const clientRegex = /^[a-zA-Z0-9_-]{1,64}$/;
     if (!clientRegex.test(clientId)) {
         res.status(400).json({ error: "Formato de x-client-id inválido o inseguro." });

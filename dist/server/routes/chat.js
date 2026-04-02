@@ -4,7 +4,9 @@ import { graph } from "../../graph/index.js";
 import admin from "../firebase.js";
 import { speechToText } from "../../services/speechToTextService.js";
 import { createRateLimitMiddleware, isWidgetTokenProtectionEnabled, issueWidgetToken, resolveClientId, widgetAccessGuard } from "../middleware/widgetSecurity.js";
+import { tokenOrFallback } from "../middleware/tokenAuth.js";
 const router = Router();
+const authGuard = tokenOrFallback(widgetAccessGuard);
 const db = admin.firestore();
 const widgetReadRateLimit = createRateLimitMiddleware({
     windowMs: Number(process.env.WIDGET_RATE_LIMIT_READ_WINDOW_MS || 60_000),
@@ -59,7 +61,7 @@ router.post("/widget-token", widgetReadRateLimit, widgetAccessGuard, async (req,
         res.status(500).json({ success: false, error: "Error al emitir token del widget" });
     }
 });
-router.post("/invoke", widgetWriteRateLimit, widgetAccessGuard, async (req, res) => {
+router.post("/invoke", widgetWriteRateLimit, authGuard, async (req, res) => {
     try {
         const { agentId, message, audio, audioMimeType, outputAudio, threadId, clientId: bodyClientId, endSession } = req.body;
         if (!agentId || (!message && !audio)) {
@@ -138,7 +140,7 @@ router.post("/invoke", widgetWriteRateLimit, widgetAccessGuard, async (req, res)
         res.status(500).json({ success: false, error: "Error al invocar agente" });
     }
 });
-router.post("/stream", widgetWriteRateLimit, widgetAccessGuard, async (req, res) => {
+router.post("/stream", widgetWriteRateLimit, authGuard, async (req, res) => {
     try {
         const { agentId, message, threadId, clientId: bodyClientId } = req.body;
         if (!agentId || !message) {
@@ -195,7 +197,7 @@ router.post("/stream", widgetWriteRateLimit, widgetAccessGuard, async (req, res)
     }
 });
 // Endpoint para marcar la sesión como terminada sin invocar el modelo
-router.post("/end-session", widgetWriteRateLimit, widgetAccessGuard, async (req, res) => {
+router.post("/end-session", widgetWriteRateLimit, authGuard, async (req, res) => {
     try {
         const { agentId, clientId: bodyClientId, threadId } = req.body;
         if (!agentId || !threadId) {
@@ -222,7 +224,7 @@ router.post("/end-session", widgetWriteRateLimit, widgetAccessGuard, async (req,
         res.status(500).json({ success: false, error: "Error al finalizar sesión" });
     }
 });
-router.get("/history/:threadId", widgetReadRateLimit, widgetAccessGuard, async (req, res) => {
+router.get("/history/:threadId", widgetReadRateLimit, authGuard, async (req, res) => {
     try {
         const { threadId } = req.params;
         const snapshot = await db
@@ -334,7 +336,7 @@ router.get("/sessions/:threadId", async (req, res) => {
         res.status(500).json({ success: false, error: "Error al obtener sesión" });
     }
 });
-router.get("/agents", widgetReadRateLimit, widgetAccessGuard, async (req, res) => {
+router.get("/agents", widgetReadRateLimit, authGuard, async (req, res) => {
     try {
         const clientId = res.locals.resolvedClientId || req.query.clientId;
         if (!clientId) {

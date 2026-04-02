@@ -2,12 +2,13 @@ import { Router, Request, Response } from "express";
 import admin from "../firebase.js";
 import { v4 as uuidv4 } from "uuid";
 import { masterAuth, AuthenticatedRequest } from "../middleware/auth.js";
+import { tokenOrFallback } from "../middleware/tokenAuth.js";
 import { invalidateAgentConfigCache } from "../../nodes/config.js";
 
 const router = Router();
 const db = admin.firestore();
 
-router.use(masterAuth);
+router.use(tokenOrFallback(masterAuth));
 
 router.get("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
