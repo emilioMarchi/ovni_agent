@@ -131,17 +131,41 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
       });
     }
 
-    // Truncar metadata si es string
-    let safeMetadata: any = metadata;
-    if (typeof metadata === 'string') {
-      safeMetadata = truncateString(metadata, 12000);
-    } else if (metadata && typeof metadata === 'object') {
-      // Truncar campos string grandes en metadata (solo si tiene índice string)
-      safeMetadata = { ...metadata } as Record<string, any>;
-      for (const k of Object.keys(safeMetadata)) {
-        if (typeof safeMetadata[k] === 'string') {
-          safeMetadata[k] = truncateString(safeMetadata[k], 8000);
+    // ── Limpiar audioBuffer de metadata.writes ──
+    // LangGraph registra en metadata.writes lo que cada nodo escribió al estado.
+    // Cuando el nodo TTS produce audioBuffer (buffer binario grande), queda capturado
+    // aquí y hace explotar el campo metadata en Firestore (>1 MB).
+    let safeMetadata: any = { ...metadata };
+    if (safeMetadata.writes && typeof safeMetadata.writes === 'object') {
+      // writes puede ser Record<string, unknown> donde las keys son nombres de nodo
+      // y los values son los state updates de ese nodo
+      const cleanedWrites: Record<string, any> = {};
+      for (const [nodeKey, nodeWrites] of Object.entries(safeMetadata.writes)) {
+        if (nodeWrites && typeof nodeWrites === 'object' && !Array.isArray(nodeWrites)) {
+          const cleaned = { ...(nodeWrites as Record<string, any>) };
+          if ('audioBuffer' in cleaned) {
+            cleaned.audioBuffer = null;
+          }
+          cleanedWrites[nodeKey] = cleaned;
+        } else if (Array.isArray(nodeWrites)) {
+          // writes puede ser un array de updates
+          cleanedWrites[nodeKey] = nodeWrites.map((w: any) => {
+            if (w && typeof w === 'object' && 'audioBuffer' in w) {
+              return { ...w, audioBuffer: null };
+            }
+            return w;
+          });
+        } else {
+          cleanedWrites[nodeKey] = nodeWrites;
         }
+      }
+      safeMetadata.writes = cleanedWrites;
+    }
+
+    // Truncar campos string grandes en metadata
+    for (const k of Object.keys(safeMetadata)) {
+      if (typeof safeMetadata[k] === 'string' && safeMetadata[k].length > 8000) {
+        safeMetadata[k] = truncateString(safeMetadata[k], 8000);
       }
     }
 
