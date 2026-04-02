@@ -4,6 +4,7 @@ type IngestDocumentParams = {
     docId: string;
     filename: string;
     description?: string;
+    docType?: "reference" | "contract";
     signal?: AbortSignal;
     onProgress?: (update: {
         stage: string;
@@ -11,7 +12,7 @@ type IngestDocumentParams = {
         message: string;
     }) => Promise<void> | void;
 };
-export declare function processAndIngestDocument({ filePath, clientId, docId, filename, description, signal, onProgress }: IngestDocumentParams): Promise<{
+export declare function processAndIngestDocument({ filePath, clientId, docId, filename, description, docType, signal, onProgress }: IngestDocumentParams): Promise<{
     docId: string;
     partsCount: number;
     processingReport: {

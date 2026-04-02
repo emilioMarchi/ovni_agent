@@ -93,6 +93,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         }
         const filename = file.originalname;
         const description = req.body.description || "";
+        const docType = req.body.docType === "contract" ? "contract" : "reference";
         const docId = `doc_${Date.now()}`;
         const tempPath = file.path;
         const now = new Date().toISOString();
@@ -100,6 +101,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
             clientId,
             filename,
             description,
+            docType,
             keywords: [],
             createdAt: now,
             updatedAt: now,
@@ -130,6 +132,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
                     docId,
                     filename,
                     description,
+                    docType,
                     signal: abortController.signal,
                     onProgress: async (progressUpdate) => {
                         await updateDocumentProcessing(docId, {

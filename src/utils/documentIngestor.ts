@@ -25,6 +25,7 @@ type IngestDocumentParams = {
   docId: string;
   filename: string;
   description?: string;
+  docType?: "reference" | "contract";
   signal?: AbortSignal;
   onProgress?: (update: { stage: string; progress: number; message: string }) => Promise<void> | void;
 };
@@ -106,7 +107,7 @@ function repairAndParseJSON(raw: string): DocumentPart[] {
   throw new Error(`JSON irrecuperable (${raw.length} chars). Inicio: ${raw.slice(0, 200)}...`);
 }
 
-export async function processAndIngestDocument({ filePath, clientId, docId, filename, description, signal, onProgress }: IngestDocumentParams) {
+export async function processAndIngestDocument({ filePath, clientId, docId, filename, description, docType = "reference", signal, onProgress }: IngestDocumentParams) {
   const db = admin.firestore();
 
   const checkAbort = () => {
@@ -258,6 +259,7 @@ Texto del documento "${filename}":\n${batch}`;
     filename,
     description: finalDescription,
     keywords: allKeywords,
+    docType,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     status: "processed",
@@ -282,6 +284,7 @@ Texto del documento "${filename}":\n${batch}`;
       filename,
       description: finalDescription,
       keywords: allKeywords.join(", "),
+      docType,
     },
   }]);
 
@@ -316,6 +319,7 @@ Texto del documento "${filename}":\n${batch}`;
         text: part.text,
         summary: part.summary,
         keywords: part.keywords,
+        docType,
         createdAt: new Date().toISOString(),
         idx: i,
       });
@@ -348,6 +352,7 @@ Texto del documento "${filename}":\n${batch}`;
           description: (part.summary || "").slice(0, 500),
           text: metaText,
           keywords: (part.keywords || []).join(", ").slice(0, 500),
+          docType,
           idx: i,
         },
       });
