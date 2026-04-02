@@ -22,7 +22,8 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
     }
     async getTuple(config) {
         const thread_id = this.getThreadId(config);
-        const doc = await this.db.collection(this.collectionName).doc(thread_id).get();
+        const docRef = this.db.collection(this.collectionName).doc(thread_id);
+        const doc = await docRef.get();
         if (!doc.exists)
             return undefined;
         const data = doc.data();
@@ -37,6 +38,11 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
             // Formato legacy: JSON puro — destruir y dejar que se re-cree limpio
             // No intentamos reconstruir messages viejos porque los tipos se pierden
             console.warn(`⚠️ [CHECKPOINT] Formato legacy detectado para thread ${thread_id}, descartando.`);
+            return undefined;
+        }
+        if (this.hasMalformedMessages(checkpoint)) {
+            console.warn(`⚠️ [CHECKPOINT] Checkpoint corrupto detectado para thread ${thread_id}, eliminando para recrearlo limpio.`);
+            await docRef.delete().catch(() => { });
             return undefined;
         }
         return {
@@ -86,7 +92,13 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
         return { configurable: { thread_id } };
     }
     stripTransientState(checkpoint) {
-        const clone = structuredClone(checkpoint);
+        const checkpointWithChannels = checkpoint;
+        const clone = {
+            ...checkpoint,
+            channel_values: {
+                ...(checkpointWithChannels.channel_values || {}),
+            },
+        };
         if (clone.channel_values) {
             // El audio TTS es transitorio: se usa para responder al cliente, pero no debe
             // persistirse en Firestore porque hace crecer el checkpoint por encima de 1 MB.
@@ -95,6 +107,19 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
             }
         }
         return clone;
+    }
+    hasMalformedMessages(checkpoint) {
+        const channelValues = checkpoint.channel_values;
+        const messages = Array.isArray(channelValues?.messages)
+            ? channelValues.messages
+            : [];
+        return messages.some((message) => {
+            if (!message || typeof message !== "object") {
+                return false;
+            }
+            const candidate = message;
+            return typeof candidate._getType !== "function" && candidate.lc_serializable === true;
+        });
     }
     async putWrites(_config, _writes, _taskId) {
         return;

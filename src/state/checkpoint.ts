@@ -28,7 +28,8 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
 
   async getTuple(config: RunnableConfig): Promise<CheckpointTuple | undefined> {
     const thread_id = this.getThreadId(config);
-    const doc = await this.db.collection(this.collectionName).doc(thread_id).get();
+    const docRef = this.db.collection(this.collectionName).doc(thread_id);
+    const doc = await docRef.get();
 
     if (!doc.exists) return undefined;
 
@@ -45,6 +46,12 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
       // Formato legacy: JSON puro — destruir y dejar que se re-cree limpio
       // No intentamos reconstruir messages viejos porque los tipos se pierden
       console.warn(`⚠️ [CHECKPOINT] Formato legacy detectado para thread ${thread_id}, descartando.`);
+      return undefined;
+    }
+
+    if (this.hasMalformedMessages(checkpoint)) {
+      console.warn(`⚠️ [CHECKPOINT] Checkpoint corrupto detectado para thread ${thread_id}, eliminando para recrearlo limpio.`);
+      await docRef.delete().catch(() => {});
       return undefined;
     }
 
@@ -110,7 +117,16 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
   }
 
   private stripTransientState(checkpoint: Checkpoint): Checkpoint {
-    const clone = structuredClone(checkpoint) as Checkpoint & {
+    const checkpointWithChannels = checkpoint as Checkpoint & {
+      channel_values?: Record<string, unknown>;
+    };
+
+    const clone = {
+      ...checkpoint,
+      channel_values: {
+        ...(checkpointWithChannels.channel_values || {}),
+      },
+    } as Checkpoint & {
       channel_values?: Record<string, unknown>;
     };
 
@@ -123,6 +139,29 @@ export class FirestoreCheckpointer extends BaseCheckpointSaver {
     }
 
     return clone;
+  }
+
+  private hasMalformedMessages(checkpoint: Checkpoint): boolean {
+    const channelValues = (checkpoint as Checkpoint & {
+      channel_values?: Record<string, unknown>;
+    }).channel_values;
+
+    const messages = Array.isArray(channelValues?.messages)
+      ? channelValues.messages
+      : [];
+
+    return messages.some((message) => {
+      if (!message || typeof message !== "object") {
+        return false;
+      }
+
+      const candidate = message as Record<string, unknown> & {
+        _getType?: unknown;
+        lc_serializable?: unknown;
+      };
+
+      return typeof candidate._getType !== "function" && candidate.lc_serializable === true;
+    });
   }
 
   async putWrites(_config: RunnableConfig, _writes: PendingWrite[], _taskId: string): Promise<void> {

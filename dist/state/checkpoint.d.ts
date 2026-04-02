@@ -16,5 +16,6 @@ export declare class FirestoreCheckpointer extends BaseCheckpointSaver {
     list(config: RunnableConfig): AsyncGenerator<CheckpointTuple>;
     put(config: RunnableConfig, checkpoint: Checkpoint, metadata: CheckpointMetadata, _newVersions: Record<string, string | number>): Promise<RunnableConfig>;
     private stripTransientState;
+    private hasMalformedMessages;
     putWrites(_config: RunnableConfig, _writes: PendingWrite[], _taskId: string): Promise<void>;
 }
