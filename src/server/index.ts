@@ -11,6 +11,7 @@ import documentsRouter from "./routes/documents.js";
 import chatRouter from "./routes/chat.js";
 import meetingsRouter from "./routes/meetings.js";
 import tokensRouter from "./routes/tokens.js";
+import foldersRouter from "./routes/folders.js";
 import { validateClientFormat } from "./middleware/auth.js";
 import { normalizeAllowedDomains } from "./middleware/widgetSecurity.js";
 
@@ -112,6 +113,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/admins", adminsRouter);
 app.use("/api/agents", agentsRouter);
 app.use("/api/documents", documentsRouter);
+app.use("/api/folders", foldersRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/meetings", meetingsRouter);
 app.use("/api/tokens", tokensRouter);

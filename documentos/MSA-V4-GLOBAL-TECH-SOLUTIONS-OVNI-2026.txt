@@ -1,0 +1,52 @@
+ACUERDO MAESTRO DE SERVICIOS DE INGENIERÍA COGNITIVA Y DESARROLLO DE SOFTWARE
+
+ENTRE:
+GLOBAL TECH SOLUTIONS S.A., una sociedad constituida bajo las leyes de Delaware, con oficinas operativas en CABA, Argentina (en adelante, “EL CLIENTE”).
+Y:
+OVNI STUDIO, estudio de desarrollo unipersonal representado por su titular (en adelante, “EL PROVEEDOR”), con domicilio en la ciudad de Santa Fe, Argentina.
+
+SECCIÓN 1: MARCO DE DEFINICIONES (EL "DICCIONARIO" TRAMPOSO)
+1.1. "Materiales del Proyecto": Significa todos los resultados tangibles e intangibles de los Servicios, incluyendo, sin limitación, código fuente, scripts, flujos de trabajo de agentes (LangGraph), prompts de sistema, esquemas de bases de datos vectoriales y cualquier documentación asociada.
+1.2. "Tecnología Base del Proveedor": Se refiere a las metodologías, bibliotecas de código preexistentes y arquitecturas de referencia que EL PROVEEDOR posee antes de la Fecha de Entrada en Vigencia.
+1.3. "Derivados de IA": Cualquier mejora, ajuste fino (fine-tuning), optimización de prompts o reestructuración de grafos de estado realizada sobre la Tecnología Base del Proveedor durante la ejecución de los Servicios.
+1.4. "Falla Crítica de Disponibilidad": La falta de respuesta técnica o ausencia de actividad en los repositorios de código por un período superior a 48 (cuarenta y ocho) horas consecutivas, incluyendo fines de semana y feriados.
+1.5. "Activos de Continuidad": Claves maestras de API (Google Cloud, OpenAI, Pinecone), credenciales de despliegue y acceso administrativo a entornos de producción y staging.
+
+SECCIÓN 2: OBJETO Y PRESTACIÓN (EL ALCANCE)
+2.1. EL PROVEEDOR se obliga a diseñar e implementar una infraestructura de agentes autónomos para la prospección B2B y soporte técnico, utilizando arquitecturas RAG (Retrieval-Augmented Generation), según se detalla en el ANEXO A (Statement of Work).
+2.2. Dada la naturaleza de "operador único" de EL PROVEEDOR, este garantiza una dedicación de 160 horas mensuales, las cuales serán auditadas mediante el registro de "commits" en el repositorio propiedad de EL CLIENTE.
+
+SECCIÓN 3: PROPIEDAD INTELECTUAL (LA EXPROPIACIÓN DISFRAZADA)
+3.1. PROPIEDAD DE LOS MATERIALES: EL PROVEEDOR acepta que todos los "Materiales del Proyecto" (Definición 1.1) son considerados works made for hire y serán propiedad exclusiva de EL CLIENTE desde su creación.
+3.2. CESIÓN DE DERIVADOS: Sin perjuicio de la propiedad de la "Tecnología Base del Proveedor" (1.2), EL PROVEEDOR cede de manera perpetua, exclusiva y mundial a EL CLIENTE todos los derechos sobre los "Derivados de IA" (Definición 1.3). EL PROVEEDOR reconoce que cualquier flujo de LangGraph o lógica de ruteo creada bajo este contrato se considera un Derivado de IA y, por tanto, no podrá ser reutilizado en proyectos para terceros por un plazo de 120 meses.
+3.3. LICENCIA INVERSA: EL PROVEEDOR otorga a EL CLIENTE una licencia perpetua, gratuita y sublicenciable sobre cualquier porción de la Tecnología Base que sea necesaria para operar los Materiales del Proyecto.
+
+SECCIÓN 4: RESPONSABILIDAD (LA TRAMPA DE LAS EXCEPCIONES)
+4.1. LIMITACIÓN GENERAL: Sujeto a la cláusula 4.2, la responsabilidad total agregada de EL PROVEEDOR por cualquier reclamo relacionado con este MSA no excederá el 100% de los honorarios pagados por EL CLIENTE en los últimos 3 meses.
+4.2. EXCEPCIONES AL LÍMITE: La limitación de la cláusula 4.1 quedará automáticamente sin efecto y la responsabilidad de EL PROVEEDOR será ILIMITADA en los siguientes supuestos:
+(a) Violación de derechos de propiedad intelectual de terceros.
+(b) Filtraciones de datos derivados de una configuración defectuosa del sistema RAG.
+(c) Cualquier daño resultante de alucinaciones de la IA que afecten la reputación de EL CLIENTE, según lo detallado en el ANEXO B (Acuerdo de Procesamiento de Datos).
+
+SECCIÓN 5: CLÁUSULA DE SUPERVIVENCIA Y "KEY MAN"
+5.1. Al ser EL PROVEEDOR un profesional independiente, en caso de ocurrir una "Falla Crítica de Disponibilidad" (Definición 1.4), se considerará un Incumplimiento Esencial del Contrato.
+5.2. Ante dicho incumplimiento, EL CLIENTE queda autorizado para ejecutar el "Protocolo de Escrow Automático", tomando posesión inmediata de todos los "Activos de Continuidad" (Definición 1.5) y el código fuente, sin compensación adicional y sin necesidad de intimación previa.
+
+SECCIÓN 6: NO COMPETENCIA Y EXCLUSIVIDAD
+6.1. EL PROVEEDOR no podrá prestar servicios de desarrollo de IA, agentes autónomos o integración de LLMs a ninguna entidad que compita con EL CLIENTE en el sector de "Soluciones Tecnológicas B2B" en todo el territorio de América Latina y Estados Unidos por un plazo de 3 años tras la rescisión de este acuerdo.
+
+SECCIÓN 7: LEY APLICABLE Y JURISDICCIÓN
+7.1. Este acuerdo se rige por las leyes del Estado de Nueva York, EE.UU.
+7.2. Las partes renuncian expresamente a los tribunales de su domicilio (incluyendo Santa Fe, Argentina) y se someten al arbitraje obligatorio de la Asociación Americana de Arbitraje (AAA) con sede en Manhattan, Nueva York. Los costos del arbitraje serán soportados inicialmente por la parte que inicie el reclamo.
+
+ANEXO A: ESPECIFICACIONES TÉCNICAS (SOW)
+Arquitectura: Grafo de estados cíclicos con LangGraph.
+
+Contexto: Implementación de RAG multimodal sobre Pinecone y Firestore.
+
+Modelo: Integración de Gemini 2.0 Flash para razonamiento de baja latencia.
+
+ANEXO B: ACUERDO DE PROCESAMIENTO DE DATOS Y RIESGOS DE IA (DPA)
+B.1. GARANTÍA DE VERACIDAD: EL PROVEEDOR garantiza que el Agente LeadGen no producirá "Alucinaciones" (información falsa o inventada). EL PROVEEDOR acepta responsabilidad objetiva por cualquier compromiso contractual que la IA asuma frente a terceros en nombre de EL CLIENTE.
+B.2. INDEMNIDAD POR SEGURIDAD: EL PROVEEDOR indemnizará a EL CLIENTE por el monto total de cualquier multa impuesta por la Agencia de Acceso a la Información Pública (AAIP) de Argentina o autoridades internacionales, si se demuestra que el sistema RAG permitió la recuperación de documentos de carácter sensible por usuarios no autorizados.
+B.3. RENUNCIA A LIMITACIONES: Las partes ratifican que las obligaciones de este Anexo B son esenciales y no están sujetas a los topes de responsabilidad establecidos en la Cláusula 4.1 del cuerpo principal de este MSA.

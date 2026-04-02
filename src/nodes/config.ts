@@ -1,6 +1,7 @@
 import admin from "firebase-admin";
 import { AgentStateType } from "../state/state.js";
 import { RunnableConfig } from "@langchain/core/runnables";
+import { resolveAllowedDocIds } from "../utils/folderScopeResolver.js";
 
 const AGENT_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 const agentConfigCache = new Map<string, { value: Record<string, unknown>; expiresAt: number }>();
@@ -78,7 +79,18 @@ export async function configNode(state: AgentStateType, _: any, config?: Runnabl
       skills: agentData.skills,
       functions: agentData.functions,
       knowledgeDocs: agentData.knowledgeDocs?.length || 0,
+      knowledgeFolderIds: agentData.knowledgeFolderIds?.length || 0,
     });
+
+    // Resolver scope: carpetas + docs sueltos → lista plana de docIds
+    const resolvedDocIds = await resolveAllowedDocIds({
+      clientId: resolvedClientId,
+      knowledgeDocs: agentData.knowledgeDocs || [],
+      knowledgeFolderIds: agentData.knowledgeFolderIds || [],
+      includeSubfolders: agentData.includeSubfolders !== false,
+    });
+
+    console.log(`🔧 [CONFIG] Scope resuelto: ${resolvedDocIds.length} docs (${agentData.knowledgeDocs?.length || 0} sueltos + ${agentData.knowledgeFolderIds?.length || 0} carpetas)`);
 
     // Devolvemos las actualizaciones al estado
     const hydratedConfig = {
@@ -88,7 +100,7 @@ export async function configNode(state: AgentStateType, _: any, config?: Runnabl
       organizationName,
       businessContext: mergedBusinessContext,
       systemInstruction: effectiveSystemInstruction,
-      allowedDocIds: agentData.knowledgeDocs || [],
+      allowedDocIds: resolvedDocIds,
       skills: agentData.skills || [],
       functions: agentData.functions || [],
     };

@@ -59,7 +59,21 @@ Este documento detalla el progreso y la planificación del Agente OVNI v2 (Matri
 
 ---
 
-## 🚀 Fase 11: Tool Intelligence (Tool RAG)
+
+## ✅ Fase 11: Fixes RAG y Document Analyzer (Abril 2026)
+- [x] **document_analyzer**: Ahora solo analiza el documento pedido, nunca todos los contracts. Fuzzy matching robusto por nombre, ID y palabras clave.
+- [x] **Scope por docId**: El RAG y el análisis solo usan los documentos permitidos, nunca el universo completo.
+- [x] **Organización de archivos**: Todos los .txt y documentos de texto movidos a carpeta `documentos`.
+- [x] **Preparación para carpetas RAG**: Arquitectura lista para agregar scope por carpeta sin romper compatibilidad.
+
+## 🚀 Fase 12: Carpetas y Scope RAG
+- [ ] **Carpetas en Firestore**: Nueva colección `knowledge_folders` y metadata de carpeta en `knowledge_docs` y Pinecone.
+- [ ] **Scope por carpeta**: Resolver allowedDocIds a partir de carpetas seleccionadas por agente, flujo o usuario.
+- [ ] **UI Admin**: Selector de carpetas y subcarpetas en la configuración de agentes y documentos.
+- [ ] **Compatibilidad**: Mantener knowledgeDocs para agentes legacy.
+- [ ] **Optimización Pinecone**: Replicar folderId/folderAncestors en metadata para filtrar directo por carpeta.
+
+## 🚀 Fase 13: Tool Intelligence (Tool RAG)
 - [ ] **Tool RAG**: Indexar descripciones de herramientas en Pinecone (`tool_catalog`).
 - [ ] **Detector de Intención**: Nodo previo al modelo que selecciona dinámicamente las 3-5 herramientas más relevantes.
 - [ ] **Búsqueda Semántica de Funciones**: Consultar Pinecone para resolver funciones/capacidades relevantes en lugar de depender solo de mapeos estáticos y routing manual.

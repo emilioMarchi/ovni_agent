@@ -735,6 +735,19 @@
                     Subir Documento
                   </button>
                 </div>
+                <!-- Folder toolbar -->
+                <div id="folders-toolbar" style="display:none;padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(0,0,0,0.02)">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted)">
+                      <i data-lucide="folder" style="width:12px;height:12px;display:inline-block;vertical-align:-2px"></i> Carpetas
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="font-size:11px;padding:2px 8px">
+                      <i data-lucide="folder-plus" style="width:12px;height:12px"></i> Nueva
+                    </button>
+                  </div>
+                  <div id="folders-chips" style="display:flex;flex-wrap:wrap;gap:6px">
+                  </div>
+                </div>
                 <div id="docs-list-container">
                    <div class="empty-state">
                     <i data-lucide="file-text"></i>
@@ -933,6 +946,12 @@
               <option value="contract">Contrato (para análisis comparativo)</option>
             </select>
           </div>
+          <div class="form-group">
+            <label class="form-label">Carpeta (opcional)</label>
+            <select name="folderId" id="doc-folder-select" class="form-input">
+              <option value="">Sin carpeta</option>
+            </select>
+          </div>
           <div class="info-box" style="margin-top:20px; background: rgba(34, 197, 94, 0.1); border-color: var(--green)">
             <i data-lucide="zap" style="color: var(--green)"></i>
             <span style="color: var(--green)">El documento será fragmentado y vectorizado automáticamente para RAG usando Gemini 2.5 Flash.</span>
@@ -1042,6 +1061,16 @@
               <div class="checkbox-grid" id="agent-knowledge-docs">
                 <div style="padding:10px;font-size:11px;color:var(--text-muted)">Seleccioná un admin primero</div>
               </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Carpetas de Conocimiento</label>
+              <div class="checkbox-grid" id="agent-knowledge-folders">
+                <div style="padding:10px;font-size:11px;color:var(--text-muted)">Seleccioná un admin primero</div>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text-secondary);cursor:pointer">
+                <input type="checkbox" name="includeSubfolders" checked>
+                Incluir subcarpetas
+              </label>
             </div>
           </div>
 
@@ -1548,6 +1577,8 @@
       });
 
       await loadKnowledgeDocsForAgentForm(currentAdminId, []);
+      await loadFoldersForAgentForm(currentAdminId, []);
+      document.querySelector('#form-agent [name="includeSubfolders"]').checked = true;
       openModal('modal-agent');
     };
 
@@ -1809,6 +1840,7 @@
       
       loadAgents(id);
       loadKnowledgeDocsForAgentForm(id);
+      loadFoldersForAgentForm(id);
       lucide.createIcons();
     };
 
@@ -1831,6 +1863,29 @@
         `).join('');
       } catch (e) {
         container.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--red)">Error al cargar documentos</div>';
+      }
+    }
+
+    async function loadFoldersForAgentForm(clientId, selectedIds = []) {
+      const container = document.getElementById('agent-knowledge-folders');
+      try {
+        const data = await apiFetch(`/api/folders?clientId=${clientId}`);
+        const folders = data.data || [];
+        
+        if (folders.length === 0) {
+          container.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-muted)">No hay carpetas creadas para este admin</div>';
+          return;
+        }
+
+        container.innerHTML = folders.map(f => `
+          <label class="checkbox-item">
+            <input type="checkbox" name="knowledgeFolderIds" value="${f.id}" ${selectedIds.includes(f.id) ? 'checked' : ''}>
+            <span title="${f.path || f.name}"><i data-lucide="folder" style="width:11px;height:11px;display:inline-block;vertical-align:-2px"></i> ${escapeHtml(f.name)}</span>
+          </label>
+        `).join('');
+        lucide.createIcons();
+      } catch (e) {
+        container.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--red)">Error al cargar carpetas</div>';
       }
     }
 
@@ -1883,6 +1938,7 @@
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
             ${(a.knowledgeDocs || []).length > 0 ? `<span class="tag"><i data-lucide="file-text" style="width:10px;height:10px"></i> ${(a.knowledgeDocs || []).length} docs</span>` : ''}
+            ${(a.knowledgeFolderIds || []).length > 0 ? `<span class="tag"><i data-lucide="folder" style="width:10px;height:10px"></i> ${(a.knowledgeFolderIds || []).length} carpetas</span>` : ''}
             ${(a.functions || []).slice(0, 3).map(fn => `<span class="tag">${fn.replace('_', ' ')}</span>`).join('')}
           </div>
           <div class="client-actions">
@@ -1933,6 +1989,8 @@
         });
 
         await loadKnowledgeDocsForAgentForm(a.clientId, a.knowledgeDocs || []);
+        await loadFoldersForAgentForm(a.clientId, a.knowledgeFolderIds || []);
+        document.querySelector('#form-agent [name="includeSubfolders"]').checked = a.includeSubfolders !== false;
         
         document.getElementById('modal-agent-title').innerHTML = '<i data-lucide="pencil"></i>Editar Agente';
         document.getElementById('modal-agent-btn-text').textContent = 'Guardar Cambios';
@@ -1948,6 +2006,8 @@
       const formData = new FormData(e.target);
       const functions = Array.from(formData.getAll('functions'));
       const knowledgeDocs = Array.from(formData.getAll('knowledgeDocs'));
+      const knowledgeFolderIds = Array.from(formData.getAll('knowledgeFolderIds'));
+      const includeSubfolders = !!document.querySelector('#form-agent [name="includeSubfolders"]')?.checked;
       
       const data = {
         clientId: formData.get('clientId'),
@@ -1960,7 +2020,9 @@
         profile: formData.get('profile'),
         active: formData.get('active') === 'true',
         functions,
-        knowledgeDocs
+        knowledgeDocs,
+        knowledgeFolderIds,
+        includeSubfolders
       };
       
       try {
@@ -2020,8 +2082,118 @@
         el.classList.toggle('active', el.textContent.includes(name));
       });
       
+      await loadFolders(id);
       loadDocuments(id);
       lucide.createIcons();
+    };
+
+    // ===== FOLDERS =====
+    let currentFolders = [];
+    let activeFolderFilter = null;
+
+    async function loadFolders(clientId) {
+      try {
+        const data = await apiFetch(`/api/folders?clientId=${clientId}`);
+        currentFolders = data.data || [];
+        renderFolderChips();
+        loadFolderSelect();
+        document.getElementById('folders-toolbar').style.display = currentFolders.length > 0 || currentAdminId ? '' : 'none';
+      } catch (e) {
+        currentFolders = [];
+      }
+    }
+
+    function renderFolderChips() {
+      const container = document.getElementById('folders-chips');
+      if (currentFolders.length === 0) {
+        container.innerHTML = '<span style="font-size:11px;color:var(--text-muted)">Sin carpetas</span>';
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = `
+        <button class="btn btn-sm ${activeFolderFilter === null ? 'btn-primary' : 'btn-ghost'}" style="font-size:11px;padding:2px 10px;border-radius:999px" onclick="filterByFolder(null)">Todos</button>
+        <button class="btn btn-sm ${activeFolderFilter === '__none__' ? 'btn-primary' : 'btn-ghost'}" style="font-size:11px;padding:2px 10px;border-radius:999px" onclick="filterByFolder('__none__')">Sin carpeta</button>
+        ${currentFolders.map(f => `
+          <span style="display:inline-flex;align-items:center;gap:4px;background:${activeFolderFilter === f.id ? 'var(--accent)' : 'var(--accent-dim)'};color:${activeFolderFilter === f.id ? '#fff' : 'var(--text-primary)'};padding:2px 8px;border-radius:999px;font-size:11px;cursor:pointer" onclick="filterByFolder('${f.id}')">
+            <i data-lucide="folder" style="width:10px;height:10px"></i>
+            ${escapeHtml(f.name)}
+            <i data-lucide="pencil" style="width:9px;height:9px;cursor:pointer;opacity:0.6" onclick="event.stopPropagation();promptRenameFolder('${f.id}','${escapeHtml(f.name)}')" title="Renombrar"></i>
+            <i data-lucide="x" style="width:9px;height:9px;cursor:pointer;opacity:0.6" onclick="event.stopPropagation();promptDeleteFolder('${f.id}','${escapeHtml(f.name)}')" title="Eliminar"></i>
+          </span>
+        `).join('')}
+      `;
+      lucide.createIcons();
+    }
+
+    function loadFolderSelect() {
+      const select = document.getElementById('doc-folder-select');
+      if (!select) return;
+      select.innerHTML = '<option value="">Sin carpeta</option>' +
+        currentFolders.map(f => `<option value="${f.id}">${escapeHtml(f.path || f.name)}</option>`).join('');
+    }
+
+    window.filterByFolder = (folderId) => {
+      activeFolderFilter = folderId;
+      renderFolderChips();
+      if (currentAdminId) loadDocuments(currentAdminId);
+    };
+
+    window.promptCreateFolder = async () => {
+      const name = prompt('Nombre de la nueva carpeta:');
+      if (!name || !name.trim()) return;
+      try {
+        await apiFetch('/api/folders', {
+          method: 'POST',
+          body: JSON.stringify({ clientId: currentAdminId, name: name.trim() })
+        });
+        showToast('Carpeta creada', 'success');
+        await loadFolders(currentAdminId);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
+
+    window.promptRenameFolder = async (folderId, currentName) => {
+      const name = prompt('Nuevo nombre:', currentName);
+      if (!name || !name.trim() || name.trim() === currentName) return;
+      try {
+        await apiFetch(`/api/folders/${folderId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ name: name.trim() })
+        });
+        showToast('Carpeta renombrada', 'success');
+        await loadFolders(currentAdminId);
+        loadDocuments(currentAdminId);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
+
+    window.promptDeleteFolder = async (folderId, folderName) => {
+      if (!confirm(`¿Eliminar la carpeta "${folderName}"? Los documentos dentro se quedarán sin carpeta.`)) return;
+      try {
+        await apiFetch(`/api/folders/${folderId}`, { method: 'DELETE' });
+        showToast('Carpeta eliminada', 'success');
+        if (activeFolderFilter === folderId) activeFolderFilter = null;
+        await loadFolders(currentAdminId);
+        loadDocuments(currentAdminId);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
+
+    window.moveDocToFolder = async (docId, folderId) => {
+      try {
+        await apiFetch(`/api/documents/${docId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ folderId: folderId || null })
+        });
+        showToast('Documento movido', 'success');
+        loadDocuments(currentAdminId);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
     };
 
     window.selectAdminForHistory = async (id, name) => {
@@ -2188,16 +2360,30 @@
 
     function renderDocuments(docs) {
       const container = document.getElementById('docs-list-container');
-      if (docs.length === 0) {
-        container.innerHTML = '<div class="empty-state"><i data-lucide="file-text"></i><p>No hay documentos para este admin</p></div>';
+
+      // Apply folder filter
+      let filtered = docs;
+      if (activeFolderFilter === '__none__') {
+        filtered = docs.filter(d => !d.folderId);
+      } else if (activeFolderFilter) {
+        filtered = docs.filter(d => d.folderId === activeFolderFilter);
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="empty-state"><i data-lucide="file-text"></i><p>${activeFolderFilter ? 'No hay documentos en esta carpeta' : 'No hay documentos para este admin'}</p></div>`;
         lucide.createIcons(); return;
       }
+
+      const folderMap = {};
+      currentFolders.forEach(f => { folderMap[f.id] = f.name; });
+      const folderOptions = currentFolders.map(f => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('');
 
       container.innerHTML = `
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
             <tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);text-transform:uppercase;font-size:10px">
               <th style="padding:12px">Archivo</th>
+              <th style="padding:12px">Carpeta</th>
               <th style="padding:12px">Estado</th>
               <th style="padding:12px">Descripción</th>
               <th style="padding:12px">Fecha</th>
@@ -2205,7 +2391,7 @@
             </tr>
           </thead>
           <tbody>
-            ${docs.map(d => {
+            ${filtered.map(d => {
               const status = d.status || 'ready';
               const progress = Math.max(0, Math.min(100, Number(d.processingProgress || 0)));
               const stage = formatDocumentStage(d.processingStage);
@@ -2228,6 +2414,12 @@
                     ${d.docType === 'contract' ? '<span style="margin-left:6px;font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.25);text-transform:uppercase;font-weight:bold">contrato</span>' : ''}
                   </td>
                   <td style="padding:12px">
+                    <select style="font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer" onchange="moveDocToFolder('${d.id}', this.value)">
+                      <option value="" ${!d.folderId ? 'selected' : ''}>Sin carpeta</option>
+                      ${currentFolders.map(f => `<option value="${f.id}" ${d.folderId === f.id ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td style="padding:12px">
                     <span class="badge" style="background:${statusBg};color:${statusColor};border:1px solid ${statusColor}44;padding:2px 8px;border-radius:4px;font-size:10px;text-transform:uppercase;font-weight:bold">
                       ${status === 'processing' ? '<i data-lucide="loader" style="width:10px;height:10px;animation:spin 1s linear infinite;display:inline-block;margin-right:4px"></i>' : ''}
                       ${status}
@@ -2243,7 +2435,7 @@
                     ` : ''}
                   </td>
                   <td style="padding:12px;color:var(--text-secondary)">
-                    <div>${d.description || '-'}</div>
+                    <div>${d.description ? (d.description.length > 60 ? escapeHtml(d.description.slice(0, 60)) + '...' : escapeHtml(d.description)) : '-'}</div>
                     ${lastLog ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">${escapeHtml(lastLog)}</div>` : ''}
                     ${d.error ? `<div style="font-size:11px;color:var(--red);margin-top:6px">${escapeHtml(d.error)}</div>` : ''}
                   </td>

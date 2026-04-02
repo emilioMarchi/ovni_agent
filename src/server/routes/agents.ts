@@ -62,7 +62,9 @@ router.post("/", async (req: Request, res: Response) => {
       maxTokens,
       type,
       profile,
-      knowledgeDocs
+      knowledgeDocs,
+      knowledgeFolderIds,
+      includeSubfolders
     } = req.body;
 
     if (!clientId || !name) {
@@ -96,6 +98,8 @@ router.post("/", async (req: Request, res: Response) => {
       type: type || "general",
       profile: profile || "general",
       knowledgeDocs: knowledgeDocs || [],
+      knowledgeFolderIds: knowledgeFolderIds || [],
+      includeSubfolders: includeSubfolders !== false,
       version: "2.0.0",
       active: true,
       createdAt: now,
@@ -120,7 +124,8 @@ router.put("/:id", async (req: Request, res: Response) => {
     const allowedFields = [
       "name", "description", "systemInstruction", "businessContext",
       "skills", "functions", "tools", "model", "temperature",
-      "maxTokens", "active", "type", "profile", "knowledgeDocs"
+      "maxTokens", "active", "type", "profile", "knowledgeDocs",
+      "knowledgeFolderIds", "includeSubfolders"
     ];
 
     for (const field of allowedFields) {
