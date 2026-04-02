@@ -1074,6 +1074,64 @@
     </div>
   </div>
 
+  <!-- MODAL: API / TOKENS -->
+  <div id="modal-api-tokens" class="modal-overlay">
+    <div class="modal" style="max-width:640px">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="key"></i>Integración API</div>
+        <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('modal-api-tokens')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:600">Datos de integración</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Client ID</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <code id="api-info-clientId" style="font-size:12px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1"></code>
+              <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('api-info-clientId').textContent)" title="Copiar"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Agent ID</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <code id="api-info-agentId" style="font-size:12px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1"></code>
+              <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('api-info-agentId').textContent)" title="Copiar"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">API URL</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <code id="api-info-url" style="font-size:12px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1"></code>
+            <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('api-info-url').textContent)" title="Copiar"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Enlace Chat Directo</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <code id="api-info-chat-link" style="font-size:11px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1"></code>
+            <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('api-info-chat-link').textContent)" title="Copiar"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:600">API Tokens</div>
+            <button class="btn btn-primary btn-sm" onclick="generateToken()" style="font-size:11px;padding:4px 12px">
+              <i data-lucide="plus" style="width:12px;height:12px"></i> Generar Token
+            </button>
+          </div>
+          <div id="api-tokens-list" style="display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:12px;color:var(--text-muted);padding:12px;text-align:center">Cargando...</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-api-tokens')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST CONTAINER -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -1392,6 +1450,82 @@
       const currentHost = window.location.hostname;
       return isLocalWidgetHost(currentHost) ? 'http://localhost:8080' : 'https://api.ovnistudio.com.ar';
     }
+
+    // ===== API TOKENS MANAGEMENT =====
+    let apiTokensAgentId = null;
+    let apiTokensClientId = null;
+
+    window.copyText = async function(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('Copiado al portapapeles', 'success');
+      } catch { showToast('No se pudo copiar', 'error'); }
+    };
+
+    window.openApiTokensModal = async function(agentId, clientId) {
+      apiTokensAgentId = agentId;
+      apiTokensClientId = clientId;
+      const apiUrl = getWidgetServerUrl();
+      document.getElementById('api-info-clientId').textContent = clientId;
+      document.getElementById('api-info-agentId').textContent = agentId;
+      document.getElementById('api-info-url').textContent = apiUrl;
+      document.getElementById('api-info-chat-link').textContent = `${apiUrl}/widget.html?agentId=${agentId}&clientId=${clientId}`;
+      openModal('modal-api-tokens');
+      loadApiTokens(clientId);
+      lucide.createIcons();
+    };
+
+    async function loadApiTokens(clientId) {
+      const container = document.getElementById('api-tokens-list');
+      try {
+        const data = await apiFetch(`/api/tokens?clientId=${clientId}`);
+        const tokens = data.tokens || [];
+        if (tokens.length === 0) {
+          container.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:12px;text-align:center">No hay tokens. Generá uno para integrar.</div>';
+          return;
+        }
+        container.innerHTML = tokens.map(t => `
+          <div style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--accent-dim)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${t.description || 'Sin descripción'} · ${new Date(t.createdAt).toLocaleDateString()}</div>
+              <code style="font-size:11px;word-break:break-all">${t.token}</code>
+            </div>
+            <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText('${t.token}')" title="Copiar token"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
+            <button class="btn btn-ghost btn-icon btn-sm" onclick="revokeToken('${t.id}')" title="Revocar token" style="color:var(--red)"><i data-lucide="trash-2" style="width:12px;height:12px"></i></button>
+          </div>
+        `).join('');
+        lucide.createIcons();
+      } catch (e) {
+        container.innerHTML = `<div style="font-size:12px;color:var(--red);padding:12px;text-align:center">Error: ${e.message}</div>`;
+      }
+    }
+
+    window.generateToken = async function() {
+      if (!apiTokensClientId) return;
+      const desc = prompt('Descripción del token (opcional):') || '';
+      try {
+        const data = await apiFetch('/api/tokens/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: apiTokensClientId, agentId: apiTokensAgentId, description: desc })
+        });
+        showToast('Token generado: ' + data.token, 'success');
+        loadApiTokens(apiTokensClientId);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
+
+    window.revokeToken = async function(tokenId) {
+      if (!confirm('¿Revocar este token? Los servicios que lo usen dejarán de funcionar.')) return;
+      try {
+        await apiFetch(`/api/tokens/${tokenId}`, { method: 'DELETE' });
+        showToast('Token revocado', 'success');
+        loadApiTokens(apiTokensClientId);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    };
 
     window.openAgentModal = async function() {
       if (!currentAdminId) {
@@ -1757,6 +1891,9 @@
             </button>
             <button class="client-btn" style="flex:1" onclick="copyAgentWidget('${a.id}', '${a.clientId || currentAdminId}')" title="Copiar embed del widget">
               <i data-lucide="copy"></i> Widget
+            </button>
+            <button class="client-btn" style="flex:1" onclick="openApiTokensModal('${a.id}', '${a.clientId || currentAdminId}')" title="Integración API y tokens">
+              <i data-lucide="key"></i> API
             </button>
           </div>
         </div>
