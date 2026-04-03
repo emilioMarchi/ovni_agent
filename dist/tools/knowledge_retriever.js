@@ -4,6 +4,7 @@ import { Pinecone } from "@pinecone-database/pinecone";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TaskType } from "@google/generative-ai";
 import admin from "firebase-admin";
+import { pushDebugEvent } from "../utils/debugCollector.js";
 const pinecone = new Pinecone({
     apiKey: process.env.PINECONE_API_KEY,
 });
@@ -71,21 +72,41 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
             console.log(`🔍 [KNOWLEDGE] Docs permitidos (${allowedDocIds.length}): ${allowedDocIds.join(", ")}`);
             // 1. Generar embedding de la consulta
             const queryVector = await embeddings.embedQuery(query);
-            // 2. Capa 1: Filtrar documentos relevantes en el catálogo
-            // Nota: En la v2, mantenemos la lógica de 'document_catalog' para pre-filtrado si es necesario
-            const catalogResults = await index.namespace("document_catalog").query({
+            // 2. Capa 1: Traer todos los documentos permitidos y filtrar en memoria por docType
+            const catalogResultsRaw = await index.namespace("document_catalog").query({
                 vector: queryVector,
-                topK: 8,
+                topK: 20,
                 filter: {
                     clientId: { "$eq": clientId },
                     docId: { "$in": allowedDocIds }
                 },
                 includeMetadata: true,
             });
+            // Filtrar en memoria: solo docType 'reference' o sin docType
+            const catalogResults = {
+                ...catalogResultsRaw,
+                matches: (catalogResultsRaw.matches || []).filter(m => !m.metadata?.docType || m.metadata?.docType === "reference")
+            };
             console.log(`🔍 [KNOWLEDGE] Capa 1 - Catálogo: ${catalogResults.matches.length} resultados`);
             for (const m of catalogResults.matches) {
                 console.log(`   📑 ${m.metadata?.filename} (${m.metadata?.docId}) → score: ${(m.score || 0).toFixed(3)}`);
             }
+            pushDebugEvent({
+                node: "knowledge_retriever",
+                timestamp: new Date().toISOString(),
+                type: "catalog_search",
+                data: {
+                    query,
+                    namespace,
+                    allowedDocIds,
+                    results: catalogResults.matches.map(m => ({
+                        docId: m.metadata?.docId,
+                        filename: m.metadata?.filename,
+                        score: +(m.score || 0).toFixed(4),
+                        description: (m.metadata?.description || "").slice(0, 120),
+                    })),
+                },
+            });
             const relevantDocIds = catalogResults.matches
                 .filter(m => (m.score || 0) > 0.3)
                 .map(m => m.metadata?.docId)
@@ -93,29 +114,29 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
             console.log(`🔍 [KNOWLEDGE] Docs relevantes (score > 0.3): ${relevantDocIds.length > 0 ? relevantDocIds.join(", ") : "NINGUNO → fallback"}`);
             if (relevantDocIds.length === 0) {
                 // Fallback: búsqueda más amplia pero SIEMPRE limitada a los docs del agente
-                const broaderFilter = { clientId: { "$eq": clientId } };
+                const broaderFilter = {
+                    clientId: { "$eq": clientId }
+                };
                 if (allowedDocIds.length > 0) {
                     broaderFilter.docId = { "$in": allowedDocIds };
                 }
                 console.log(`🔍 [KNOWLEDGE] Fallback: búsqueda amplia en ${namespace}`);
-                const broaderSearch = await index.namespace(namespace).query({
+                const broaderSearchRaw = await index.namespace(namespace).query({
                     vector: queryVector,
-                    topK: 10,
+                    topK: 20,
                     filter: broaderFilter,
                     includeMetadata: true,
                 });
-                console.log(`🔍 [KNOWLEDGE] Fallback: ${broaderSearch.matches?.length || 0} resultados`);
-                for (const m of (broaderSearch.matches || [])) {
-                    console.log(`   📄 ${m.metadata?.filename} → score: ${(m.score || 0).toFixed(3)} | ${(m.metadata?.description || "").slice(0, 80)}`);
-                }
-                if (!broaderSearch.matches || broaderSearch.matches.length === 0) {
+                // Filtrar en memoria: solo docType 'reference' o sin docType
+                const broaderMatches = (broaderSearchRaw.matches || []).filter(m => !m.metadata?.docType || m.metadata?.docType === "reference");
+                if (!broaderMatches || broaderMatches.length === 0) {
                     const productFallback = seemsProductQuery(query) ? await searchProductsFallback(query, clientId) : "";
                     if (productFallback) {
                         return `No encontré información clara en documentos, pero sí encontré esto en el catálogo estructurado:\n\n${productFallback}`;
                     }
                     return "No se encontró información relevante ni en los documentos autorizados ni en el catálogo estructurado.";
                 }
-                return broaderSearch.matches
+                return broaderMatches
                     .filter(m => (m.score || 0) >= 0.25)
                     .map(m => `[DOC: ${m.metadata?.filename}] [SECCIÓN: ${m.metadata?.description}]:\n${m.metadata?.text}`)
                     .join("\n\n---\n\n");
@@ -125,13 +146,15 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
             const TOP_PER_DOC = 8;
             const allFragments = [];
             const docSearches = relevantDocIds.map(async (docId) => {
-                const result = await index.namespace(namespace).query({
+                const resultRaw = await index.namespace(namespace).query({
                     vector: queryVector,
                     topK: TOP_PER_DOC,
                     filter: { docId: { "$eq": docId } },
                     includeMetadata: true,
                 });
-                return (result.matches || [])
+                // Filtrar en memoria: solo docType 'reference' o sin docType
+                return (resultRaw.matches || [])
+                    .filter(m => !m.metadata?.docType || m.metadata?.docType === "reference")
                     .filter(m => (m.score || 0) >= 0.20)
                     .map(m => ({
                     score: m.score || 0,
@@ -176,6 +199,24 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
             for (const f of topFragments) {
                 console.log(`   ✅ score=${f.score.toFixed(3)} | ${f.filename} → ${f.description.slice(0, 60)}`);
             }
+            pushDebugEvent({
+                node: "knowledge_retriever",
+                timestamp: new Date().toISOString(),
+                type: "fragment_selection",
+                data: {
+                    totalFragments: allFragments.length,
+                    bestScore: +bestScore.toFixed(4),
+                    dynamicThreshold: +dynamicThreshold.toFixed(4),
+                    selected: topFragments.map(f => ({
+                        docId: f.docId,
+                        filename: f.filename,
+                        section: f.section_title || f.description,
+                        score: +f.score.toFixed(4),
+                        textPreview: f.text.slice(0, 200),
+                    })),
+                    discarded: allFragments.filter(f => f.score < dynamicThreshold).length,
+                },
+            });
             return topFragments
                 .map(f => {
                 const section = f.section_title || f.description;

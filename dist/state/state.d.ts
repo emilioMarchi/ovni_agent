@@ -100,6 +100,15 @@ export declare const AgentState: import("@langchain/langgraph").AnnotationRoot<{
      * Permite saltear procesos previos costosos para inputs simples sin intención clara.
      */
     fastPath: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
+    /**
+     * Traza de debug: acumula eventos internos del grafo para inspección.
+     * Solo se popula cuando el request viene con debug: true.
+     */
+    debugTrace: import("@langchain/langgraph").BinaryOperatorAggregate<Record<string, unknown>[], Record<string, unknown>[]>;
+    /**
+     * Flag para activar la recolección de debug trace.
+     */
+    debugMode: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
     messages: import("@langchain/langgraph").BinaryOperatorAggregate<import("@langchain/core/messages").BaseMessage[], import("@langchain/langgraph").Messages>;
 }>;
 /**

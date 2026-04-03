@@ -95,6 +95,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         const filename = file.originalname;
         const description = req.body.description || "";
         const docType = req.body.docType === "contract" ? "contract" : "reference";
+        const folderId = req.body.folderId || null;
         const docId = `doc_${Date.now()}`;
         const tempPath = file.path;
         const now = new Date().toISOString();
@@ -103,6 +104,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
             filename,
             description,
             docType,
+            folderId,
             keywords: [],
             createdAt: now,
             updatedAt: now,
@@ -134,6 +136,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
                     filename,
                     description,
                     docType,
+                    folderId,
                     signal: abortController.signal,
                     onProgress: async (progressUpdate) => {
                         await updateDocumentProcessing(docId, {
@@ -254,6 +257,30 @@ router.post("/:id/cancel", async (req, res) => {
     catch (error) {
         console.error("Error cancelling document:", error);
         res.status(500).json({ success: false, error: `Error al cancelar: ${error.message}` });
+    }
+});
+// Actualizar metadatos de documento (ej: mover a carpeta)
+router.put("/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const docRef = db.collection("knowledge_docs").doc(id);
+        const docSnap = await docRef.get();
+        if (!docSnap.exists) {
+            return res.status(404).json({ success: false, error: "Documento no encontrado" });
+        }
+        const allowedFields = ["folderId", "description", "keywords", "docType"];
+        const updates = { updatedAt: new Date().toISOString() };
+        for (const field of allowedFields) {
+            if (req.body[field] !== undefined) {
+                updates[field] = req.body[field];
+            }
+        }
+        await docRef.update(updates);
+        res.json({ success: true, data: { id, ...updates } });
+    }
+    catch (error) {
+        console.error("Error updating document:", error);
+        res.status(500).json({ success: false, error: `Error al actualizar documento: ${error.message}` });
     }
 });
 // Eliminar documento con cascade (parts + Pinecone)

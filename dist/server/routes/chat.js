@@ -63,7 +63,7 @@ router.post("/widget-token", widgetReadRateLimit, widgetAccessGuard, async (req,
 });
 router.post("/invoke", widgetWriteRateLimit, authGuard, async (req, res) => {
     try {
-        const { agentId, message, audio, audioMimeType, outputAudio, threadId, clientId: bodyClientId, endSession } = req.body;
+        const { agentId, message, audio, audioMimeType, outputAudio, threadId, clientId: bodyClientId, endSession, debug } = req.body;
         if (!agentId || (!message && !audio)) {
             return res.status(400).json({
                 success: false,
@@ -99,6 +99,7 @@ router.post("/invoke", widgetWriteRateLimit, authGuard, async (req, res) => {
             contextHistory: [],
             contextQuery: message || "",
             fastPath: isSimpleInputWithoutIntent(message),
+            debugMode: !!debug,
         };
         if (audio) {
             const audioBuffer = Buffer.from(audio, "base64");
@@ -127,11 +128,15 @@ router.post("/invoke", widgetWriteRateLimit, authGuard, async (req, res) => {
         const result = await graph.invoke(inputState, config);
         const lastMessage = result.messages[result.messages.length - 1];
         const responseData = {
+            agentId,
             response: lastMessage.content,
             threadId: config.configurable.thread_id,
         };
         if (result.audioBuffer) {
             responseData.audioBase64 = result.audioBuffer.toString("base64");
+        }
+        if (debug && result.debugTrace) {
+            responseData._debug = result.debugTrace;
         }
         res.json({ success: true, data: responseData });
     }

@@ -2,6 +2,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { tools } from "../tools/index.js";
 import { SystemInstructionBuilder } from "../utils/SystemInstructionBuilder.js";
+import { pushDebugEvent, drainDebugEvents } from "../utils/debugCollector.js";
 export async function modelNode(state) {
     const { messages, functions, skills } = state;
     const lastMessage = messages[messages.length - 1];
@@ -53,7 +54,7 @@ export async function modelNode(state) {
     });
     const baseModel = new ChatGoogleGenerativeAI({
         modelName: "gemini-2.5-flash",
-        maxOutputTokens: state.outputAudio ? 800 : 2048,
+        maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
         temperature: 0.3,
         apiKey: process.env.GEMINI_API_KEY,
     });
@@ -79,13 +80,35 @@ export async function modelNode(state) {
     else {
         console.log(`💬 Eva decidió responder directamente.`);
     }
+    // Emit debug event for model decision
+    if (state.debugMode) {
+        pushDebugEvent({
+            node: "model",
+            timestamp: new Date().toISOString(),
+            type: "llm_decision",
+            data: {
+                allowedTools: allowedTools.map(t => t.name),
+                toolCalls: response?.tool_calls?.map((tc) => ({ name: tc.name, args: tc.args })) || [],
+                respondedDirectly: !response?.tool_calls?.length,
+                responsePreview: !response?.tool_calls?.length ? response.content?.substring(0, 300) : undefined,
+            },
+        });
+    }
     if (!response || typeof response !== "object" || !("content" in response)) {
         return {
             messages: [new AIMessage("Lo siento, no se pudo obtener una respuesta válida del modelo.")],
         };
     }
-    return {
+    const modelReturn = {
         messages: [response],
     };
+    // If debug mode and no tool calls (direct response), drain events now
+    if (state.debugMode) {
+        const events = drainDebugEvents();
+        if (events.length > 0) {
+            modelReturn.debugTrace = events;
+        }
+    }
+    return modelReturn;
 }
 //# sourceMappingURL=model.js.map

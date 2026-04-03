@@ -1,4 +1,6 @@
 import admin from "firebase-admin";
+import { resolveAllowedDocIds } from "../utils/folderScopeResolver.js";
+import { setActiveThread, pushDebugEvent } from "../utils/debugCollector.js";
 const AGENT_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 const agentConfigCache = new Map();
 /**
@@ -65,7 +67,37 @@ export async function configNode(state, _, config) {
             skills: agentData.skills,
             functions: agentData.functions,
             knowledgeDocs: agentData.knowledgeDocs?.length || 0,
+            knowledgeFolderIds: agentData.knowledgeFolderIds?.length || 0,
         });
+        // Resolver scope: carpetas + docs sueltos → lista plana de docIds
+        const resolvedDocIds = await resolveAllowedDocIds({
+            clientId: resolvedClientId,
+            knowledgeDocs: agentData.knowledgeDocs || [],
+            knowledgeFolderIds: agentData.knowledgeFolderIds || [],
+            includeSubfolders: agentData.includeSubfolders !== false,
+        });
+        console.log(`🔧 [CONFIG] Scope resuelto: ${resolvedDocIds.length} docs (${agentData.knowledgeDocs?.length || 0} sueltos + ${agentData.knowledgeFolderIds?.length || 0} carpetas)`);
+        // Activate debug thread if needed
+        if (state.debugMode) {
+            setActiveThread(threadId);
+            pushDebugEvent({
+                node: "config",
+                timestamp: new Date().toISOString(),
+                type: "agent_loaded",
+                data: {
+                    agentId,
+                    agentName: agentData.name || "",
+                    clientId: resolvedClientId,
+                    organizationName,
+                    skills: agentData.skills || [],
+                    functions: agentData.functions || [],
+                    knowledgeDocs: agentData.knowledgeDocs?.length || 0,
+                    knowledgeFolderIds: agentData.knowledgeFolderIds?.length || 0,
+                    resolvedDocIds: resolvedDocIds.length,
+                    allowedDocIds: resolvedDocIds,
+                },
+            });
+        }
         // Devolvemos las actualizaciones al estado
         const hydratedConfig = {
             clientId: resolvedClientId,
@@ -74,10 +106,15 @@ export async function configNode(state, _, config) {
             organizationName,
             businessContext: mergedBusinessContext,
             systemInstruction: effectiveSystemInstruction,
-            allowedDocIds: agentData.knowledgeDocs || [],
+            allowedDocIds: resolvedDocIds,
             skills: agentData.skills || [],
             functions: agentData.functions || [],
         };
+        // Include config debug event in the state trace
+        if (state.debugMode) {
+            const { drainDebugEvents } = await import("../utils/debugCollector.js");
+            hydratedConfig.debugTrace = drainDebugEvents();
+        }
         agentConfigCache.set(agentId, {
             value: hydratedConfig,
             expiresAt: Date.now() + AGENT_CONFIG_CACHE_TTL_MS,

@@ -4,10 +4,11 @@ import { z } from "zod";
  * Herramienta de análisis documental comparativo.
  *
  * Flujo:
- *  1. Extrae fragmentos del documento objetivo desde Pinecone.
- *  2. Para cada fragmento, busca contexto relevante en la base de conocimiento (RAG).
- *  3. Construye pares [fragmento + contexto teórico] y los envía al modelo para análisis.
- *  4. Genera un reporte consolidado de hallazgos, anomalías o diferencias.
+ *  1. Resuelve los documentos objetivo (contratos) y de referencia desde Firestore.
+ *  2. Usa knowledge_retriever para extraer fragmentos del contrato (misma lógica de búsqueda que funciona en el chat).
+ *  3. Usa knowledge_retriever para extraer contexto normativo/legal de los documentos de referencia.
+ *  4. Combina ambos y envía al modelo para análisis comparativo.
+ *  5. Genera un reporte consolidado de hallazgos, anomalías o diferencias.
  */
 export declare const documentAnalyzerTool: DynamicStructuredTool<z.ZodObject<{
     query: z.ZodString;

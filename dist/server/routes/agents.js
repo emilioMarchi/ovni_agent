@@ -6,8 +6,8 @@ import { tokenOrFallback } from "../middleware/tokenAuth.js";
 import { invalidateAgentConfigCache } from "../../nodes/config.js";
 const router = Router();
 const db = admin.firestore();
-router.use(tokenOrFallback(masterAuth));
-router.get("/", async (req, res) => {
+// Protegido: requiere auth
+router.get("/", tokenOrFallback(masterAuth), async (req, res) => {
     try {
         const { clientId } = req.query;
         let query = db.collection("agents");
@@ -26,22 +26,43 @@ router.get("/", async (req, res) => {
         res.status(500).json({ success: false, error: "Error al obtener agentes" });
     }
 });
-router.get("/:id", async (req, res) => {
-    try {
-        const doc = await db.collection("agents").doc(req.params.id).get();
-        if (!doc.exists) {
-            return res.status(404).json({ success: false, error: "Agente no encontrado" });
+// GET /api/agents/:id
+// Si viene ?demo=true, permite acceso público (sin header x-client-id ni token)
+router.get("/:id", async (req, res, next) => {
+    const isDemo = req.query.demo === "true" || req.query.demo === "1";
+    if (isDemo) {
+        // Demo mode: acceso público
+        try {
+            const doc = await db.collection("agents").doc(req.params.id).get();
+            if (!doc.exists) {
+                return res.status(404).json({ success: false, error: "Agente no encontrado" });
+            }
+            return res.json({ success: true, data: { id: doc.id, ...doc.data() } });
         }
-        res.json({ success: true, data: { id: doc.id, ...doc.data() } });
+        catch (error) {
+            console.error("Error fetching agent:", error);
+            return res.status(500).json({ success: false, error: "Error al obtener agente" });
+        }
     }
-    catch (error) {
-        console.error("Error fetching agent:", error);
-        res.status(500).json({ success: false, error: "Error al obtener agente" });
-    }
+    // Si no es demo, usar tokenOrFallback(masterAuth)
+    return tokenOrFallback(masterAuth)(req, res, async () => {
+        try {
+            const doc = await db.collection("agents").doc(req.params.id).get();
+            if (!doc.exists) {
+                return res.status(404).json({ success: false, error: "Agente no encontrado" });
+            }
+            res.json({ success: true, data: { id: doc.id, ...doc.data() } });
+        }
+        catch (error) {
+            console.error("Error fetching agent:", error);
+            res.status(500).json({ success: false, error: "Error al obtener agente" });
+        }
+    });
 });
-router.post("/", async (req, res) => {
+// Protegido: requiere auth
+router.post("/", tokenOrFallback(masterAuth), async (req, res) => {
     try {
-        const { clientId, name, description, systemInstruction, businessContext, skills, functions, tools, model, temperature, maxTokens, type, profile, knowledgeDocs } = req.body;
+        const { clientId, name, description, systemInstruction, businessContext, skills, functions, tools, model, temperature, maxTokens, type, profile, knowledgeDocs, knowledgeFolderIds, includeSubfolders } = req.body;
         if (!clientId || !name) {
             return res.status(400).json({ success: false, error: "clientId y name son requeridos" });
         }
@@ -70,6 +91,8 @@ router.post("/", async (req, res) => {
             type: type || "general",
             profile: profile || "general",
             knowledgeDocs: knowledgeDocs || [],
+            knowledgeFolderIds: knowledgeFolderIds || [],
+            includeSubfolders: includeSubfolders !== false,
             version: "2.0.0",
             active: true,
             createdAt: now,
@@ -91,7 +114,8 @@ router.put("/:id", async (req, res) => {
         const allowedFields = [
             "name", "description", "systemInstruction", "businessContext",
             "skills", "functions", "tools", "model", "temperature",
-            "maxTokens", "active", "type", "profile", "knowledgeDocs"
+            "maxTokens", "active", "type", "profile", "knowledgeDocs",
+            "knowledgeFolderIds", "includeSubfolders"
         ];
         for (const field of allowedFields) {
             if (req.body[field] !== undefined) {

@@ -1,6 +1,7 @@
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { tools } from "../tools/index.js";
 import { AIMessage } from "@langchain/core/messages";
+import { drainDebugEvents } from "../utils/debugCollector.js";
 /**
  * Nodo de Herramientas: Ejecuta automáticamente las llamadas a herramientas
  * generadas por el modelo y devuelve los resultados al estado del grafo.
@@ -119,6 +120,39 @@ export async function toolNodeWithLogs(state) {
     const lastResult = result.messages[result.messages.length - 1];
     if (lastResult) {
         console.log("🔧 [TOOLS] Resultado:", lastResult.content?.substring(0, 300));
+    }
+    // Drain debug events from collector into state if debug mode is on
+    if (state.debugMode) {
+        const toolCallEvents = [];
+        // Capture tool call summaries from the patchedMessage
+        if (patchedMessage.tool_calls) {
+            for (const tc of patchedMessage.tool_calls) {
+                toolCallEvents.push({
+                    node: "tools",
+                    timestamp: new Date().toISOString(),
+                    type: "tool_call",
+                    data: { name: tc.name, args: tc.args, id: tc.id },
+                });
+            }
+        }
+        // Capture tool results
+        for (const msg of result.messages) {
+            if (msg.name) {
+                toolCallEvents.push({
+                    node: "tools",
+                    timestamp: new Date().toISOString(),
+                    type: "tool_result",
+                    data: {
+                        name: msg.name,
+                        tool_call_id: msg.tool_call_id,
+                        contentPreview: msg.content?.substring(0, 500),
+                    },
+                });
+            }
+        }
+        // Drain collector events (from knowledge_retriever, etc.)
+        const collectorEvents = drainDebugEvents();
+        result.debugTrace = [...toolCallEvents, ...collectorEvents];
     }
     return result;
 }

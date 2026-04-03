@@ -30,6 +30,8 @@ export declare const graph: import("@langchain/langgraph").CompiledStateGraph<im
     }[]>;
     contextQuery: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     fastPath: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
+    debugTrace: import("@langchain/langgraph").BinaryOperatorAggregate<Record<string, unknown>[], Record<string, unknown>[]>;
+    debugMode: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
     messages: import("@langchain/langgraph").BinaryOperatorAggregate<import("@langchain/core/messages").BaseMessage[], import("@langchain/langgraph").Messages>;
 }>, import("@langchain/langgraph").UpdateType<{
     clientId: import("@langchain/langgraph").LastValue<string>;
@@ -60,8 +62,10 @@ export declare const graph: import("@langchain/langgraph").CompiledStateGraph<im
     }[]>;
     contextQuery: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     fastPath: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
+    debugTrace: import("@langchain/langgraph").BinaryOperatorAggregate<Record<string, unknown>[], Record<string, unknown>[]>;
+    debugMode: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
     messages: import("@langchain/langgraph").BinaryOperatorAggregate<import("@langchain/core/messages").BaseMessage[], import("@langchain/langgraph").Messages>;
-}>, "history_retriever" | "config" | "__start__" | "speech_to_text" | "agent" | "tools" | "text_to_speech" | "save_history", {
+}>, "config" | "history_retriever" | "tools" | "__start__" | "speech_to_text" | "agent" | "text_to_speech" | "save_history", {
     clientId: import("@langchain/langgraph").LastValue<string>;
     agentId: import("@langchain/langgraph").LastValue<string>;
     agentName: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
@@ -90,6 +94,8 @@ export declare const graph: import("@langchain/langgraph").CompiledStateGraph<im
     }[]>;
     contextQuery: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     fastPath: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
+    debugTrace: import("@langchain/langgraph").BinaryOperatorAggregate<Record<string, unknown>[], Record<string, unknown>[]>;
+    debugMode: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
     messages: import("@langchain/langgraph").BinaryOperatorAggregate<import("@langchain/core/messages").BaseMessage[], import("@langchain/langgraph").Messages>;
 }, {
     clientId: import("@langchain/langgraph").LastValue<string>;
@@ -120,6 +126,8 @@ export declare const graph: import("@langchain/langgraph").CompiledStateGraph<im
     }[]>;
     contextQuery: import("@langchain/langgraph").BinaryOperatorAggregate<string, string>;
     fastPath: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
+    debugTrace: import("@langchain/langgraph").BinaryOperatorAggregate<Record<string, unknown>[], Record<string, unknown>[]>;
+    debugMode: import("@langchain/langgraph").BinaryOperatorAggregate<boolean, boolean>;
     messages: import("@langchain/langgraph").BinaryOperatorAggregate<import("@langchain/core/messages").BaseMessage[], import("@langchain/langgraph").Messages>;
 }, import("@langchain/langgraph").StateDefinition>;
 /**

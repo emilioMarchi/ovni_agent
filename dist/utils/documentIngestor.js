@@ -77,7 +77,7 @@ function repairAndParseJSON(raw) {
     }
     throw new Error(`JSON irrecuperable (${raw.length} chars). Inicio: ${raw.slice(0, 200)}...`);
 }
-export async function processAndIngestDocument({ filePath, clientId, docId, filename, description, docType = "reference", signal, onProgress }) {
+export async function processAndIngestDocument({ filePath, clientId, docId, filename, description, docType = "reference", folderId = null, signal, onProgress }) {
     const db = admin.firestore();
     const checkAbort = () => {
         if (signal?.aborted) {
@@ -215,6 +215,7 @@ Texto del documento "${filename}":\n${batch}`;
         description: finalDescription,
         keywords: allKeywords,
         docType,
+        folderId: folderId || null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         status: "processed",
@@ -238,6 +239,7 @@ Texto del documento "${filename}":\n${batch}`;
                 description: finalDescription,
                 keywords: allKeywords.join(", "),
                 docType,
+                folderId: folderId || "",
             },
         }]);
     // 5. Guardar partes en knowledge_parts y Pinecone (en batch)
@@ -265,6 +267,7 @@ Texto del documento "${filename}":\n${batch}`;
                 summary: part.summary,
                 keywords: part.keywords,
                 docType,
+                folderId: folderId || null,
                 createdAt: new Date().toISOString(),
                 idx: i,
             });
@@ -296,6 +299,7 @@ Texto del documento "${filename}":\n${batch}`;
                     text: metaText,
                     keywords: (part.keywords || []).join(", ").slice(0, 500),
                     docType,
+                    folderId: folderId || "",
                     idx: i,
                 },
             });

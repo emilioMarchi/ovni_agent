@@ -17,15 +17,4 @@ export declare function configNode(state: AgentStateType, _: any, config?: Runna
 } | {
     threadId: any;
     systemInstruction?: undefined;
-} | {
-    threadId: any;
-    clientId: any;
-    agentName: any;
-    agentDescription: any;
-    organizationName: any;
-    businessContext: string;
-    systemInstruction: any;
-    allowedDocIds: any;
-    skills: any;
-    functions: any;
 }>;
