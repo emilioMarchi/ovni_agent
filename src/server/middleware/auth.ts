@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const MASTER_PASSWORD = process.env.MASTER_ADMIN_PASSWORD || "admin123";
-const MASTER_CLIENT_ID = process.env.MASTER_CLIENT_IDS?.split(",")[0] || "";
+const MASTER_CLIENT_ID = process.env.MASTER_CLIENT_ID || process.env.MASTER_CLIENT_IDS?.split(",")[0] || "";
 
 export interface AuthenticatedRequest extends Request {
   masterClientId?: string;
