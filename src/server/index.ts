@@ -1,6 +1,8 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 
 import "./firebase.js";
 import admin from "./firebase.js";
@@ -14,8 +16,6 @@ import tokensRouter from "./routes/tokens.js";
 import foldersRouter from "./routes/folders.js";
 import { validateClientFormat } from "./middleware/auth.js";
 import { normalizeAllowedDomains } from "./middleware/widgetSecurity.js";
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
