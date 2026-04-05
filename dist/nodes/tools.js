@@ -121,6 +121,9 @@ export async function toolNodeWithLogs(state) {
     if (lastResult) {
         console.log("🔧 [TOOLS] Resultado:", lastResult.content?.substring(0, 300));
     }
+    // IMPORTANTE: Devolvemos el mensaje parcheado para que reemplace al original en el estado
+    // y luego los mensajes de resultado de las herramientas.
+    const finalMessages = [patchedMessage, ...result.messages];
     // Drain debug events from collector into state if debug mode is on
     if (state.debugMode) {
         const toolCallEvents = [];
@@ -152,8 +155,13 @@ export async function toolNodeWithLogs(state) {
         }
         // Drain collector events (from knowledge_retriever, etc.)
         const collectorEvents = drainDebugEvents();
-        result.debugTrace = [...toolCallEvents, ...collectorEvents];
+        return {
+            messages: finalMessages,
+            debugTrace: [...toolCallEvents, ...collectorEvents]
+        };
     }
-    return result;
+    return {
+        messages: finalMessages
+    };
 }
 //# sourceMappingURL=tools.js.map

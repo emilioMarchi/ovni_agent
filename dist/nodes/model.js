@@ -1,21 +1,10 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import { tools } from "../tools/index.js";
 import { SystemInstructionBuilder } from "../utils/SystemInstructionBuilder.js";
 import { pushDebugEvent, drainDebugEvents } from "../utils/debugCollector.js";
 export async function modelNode(state) {
-    const { messages, functions, skills } = state;
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage instanceof ToolMessage) {
-        const toolName = lastMessage.name || "";
-        const toolContent = typeof lastMessage.content === "string" ? lastMessage.content : String(lastMessage.content || "");
-        if (toolName === "availability_checker" && toolContent.trim()) {
-            console.log(`💬 [MODEL] Respuesta directa desde tool ${toolName}.`);
-            return {
-                messages: [new AIMessage(toolContent)],
-            };
-        }
-    }
+    const { messages, functions, skills, contextHistory = [] } = state;
     const legacyToNewMapping = {
         "search_knowledge": "knowledge_retriever",
         "search_products": "product_catalog",
@@ -55,13 +44,19 @@ export async function modelNode(state) {
     const baseModel = new ChatGoogleGenerativeAI({
         modelName: "gemini-2.5-flash",
         maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
-        temperature: 0.3,
+        temperature: 0.4,
         apiKey: process.env.GEMINI_API_KEY,
     });
     const modelWithTools = baseModel.bindTools(allowedTools);
     const systemPrompt = SystemInstructionBuilder.build(state);
+    // Formatear historial pasado para inyectarlo como contexto extra si existe
+    const formattedHistory = contextHistory.length > 0
+        ? "\n\n--- MEMORIA DE SESIONES ANTERIORES ---\n" +
+            contextHistory.map(m => `${m.role === "user" ? "Usuario" : "Agente"} (${m.timestamp}): ${m.content}`).join("\n") +
+            "\n--------------------------------------\n"
+        : "";
     const allMessages = [
-        new SystemMessage(systemPrompt),
+        new SystemMessage(systemPrompt + formattedHistory),
         ...messages
     ];
     let response;
