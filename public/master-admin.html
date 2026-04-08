@@ -1142,6 +1142,13 @@
             <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('api-info-chat-link').textContent)" title="Copiar"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
           </div>
         </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Demo del Agente</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <a id="agent-demo-link" href="#" target="_blank" style="font-size:11px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1;text-decoration:underline;color:var(--text-primary)">Abrir demo</a>
+            <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('agent-demo-link').href)" title="Copiar demo link"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
+          </div>
+        </div>
 
         <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -1499,6 +1506,7 @@
       document.getElementById('api-info-agentId').textContent = agentId;
       document.getElementById('api-info-url').textContent = apiUrl;
       document.getElementById('api-info-chat-link').textContent = `${apiUrl}/widget.html?agentId=${agentId}&clientId=${clientId}`;
+      document.getElementById('agent-demo-link').href = `https://dev.ovnistudio.com.ar/agent-demo?clientId=${clientId}&agentId=${agentId}`;
       openModal('modal-api-tokens');
       loadApiTokens(clientId);
       lucide.createIcons();
