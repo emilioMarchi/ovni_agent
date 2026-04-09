@@ -74,12 +74,15 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
 
     try {
       const index = pinecone.index("chatbot-knowledge");
-      // Asegurarse de que el namespace use el clientId real, no el nombre de la organización
+      // Validar que el clientId sea el ID de Firestore (ej: org_xxx), nunca el nombre de la organización
+      if (!clientId || clientId.includes(" ") || !clientId.startsWith("org_")) {
+        console.error(`[KNOWLEDGE] ERROR: clientId inválido para namespace: '${clientId}'. Debe ser el ID de Firestore (ej: org_xxx).`);
+      }
       const namespace = `client_${clientId}`;
 
       console.log(`\n🔍 [KNOWLEDGE] ========== INICIO BÚSQUEDA =========`);
       console.log(`🔍 [KNOWLEDGE] Query: "${query}"`);
-      console.log(`🔍 [KNOWLEDGE] ClienteId: ${clientId} | Namespace: ${namespace}`);
+      console.log(`🔍 [KNOWLEDGE] clientId (Firestore): '${clientId}' | Namespace: ${namespace}`);
       console.log(`🔍 [KNOWLEDGE] Docs permitidos (${allowedDocIds.length}): ${allowedDocIds.join(", ")}`);
       
       // 1. Generar embedding de la consulta
