@@ -1,14 +1,14 @@
 import dotenv from "dotenv";
 dotenv.config();
 const MASTER_PASSWORD = process.env.MASTER_ADMIN_PASSWORD || "admin123";
-const MASTER_CLIENT_ID = process.env.MASTER_CLIENT_ID || process.env.MASTER_CLIENT_IDS?.split(",")[0] || "";
+const MASTER_CLIENT_ID = process.env.MASTER_CLIENT_ID || "";
 export function masterAuth(req, res, next) {
     const clientId = req.headers["x-client-id"];
     if (!clientId) {
         res.status(401).json({ error: "Falta x-client-id header" });
         return;
     }
-    if (clientId !== MASTER_CLIENT_ID) {
+    if (!MASTER_CLIENT_ID || clientId !== MASTER_CLIENT_ID) {
         res.status(403).json({ error: "Acceso denegado. No tienes permisos de Master Admin." });
         return;
     }
@@ -16,8 +16,9 @@ export function masterAuth(req, res, next) {
     next();
 }
 export function isMasterClient(clientId) {
-    const clients = process.env.MASTER_CLIENT_IDS?.split(",") || [];
-    return clients.includes(clientId);
+    if (!clientId || !MASTER_CLIENT_ID)
+        return false;
+    return clientId === MASTER_CLIENT_ID;
 }
 export function verifyMasterPassword(password) {
     return password === MASTER_PASSWORD;

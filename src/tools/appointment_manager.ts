@@ -4,7 +4,7 @@ import admin from "firebase-admin";
 import { getAvailableSlots } from "../services/availabilityService.js";
 import { sendMeetingRequestToAdmin, sendRequestReceivedToUser } from "../services/emailService.js";
 import { getSessionData } from "./context_manager.js";
-import { formatGroupedSlots, formatFriendlyDate, getTodayDateString, normalizeTimeInput } from "../utils/dateUtils.js";
+import { getTodayDateString, formatFriendlyDate } from "../utils/dateUtils.js";
 import { toDate, formatInTimeZone } from 'date-fns-tz';
 
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
@@ -14,25 +14,25 @@ const TIMEZONE = 'America/Argentina/Buenos_Aires';
  */
 export const appointmentManagerTool = new DynamicStructuredTool({
   name: "appointment_manager",
-  description: `SISTEMA DE GESTIÓN DE REUNIONES.
+  description: `SISTEMA DE GESTIÓN DE CITAS Y EVENTOS.
 
-  USÁ ESTA HERRAMIENTA SOLO CUANDO HAYA INTENCIÓN CLARA DE AGENDA O DISPONIBILIDAD.
+  USÁ ESTA HERRAMIENTA SOLO CUANDO HAYA INTENCIÓN CLARA DE AGENDAR UNA CITA, ENTREVISTA, REUNIÓN, CONSULTA U OTRO EVENTO.
 
   CUÁNDO USARLA:
-  1. Si el usuario pide explícitamente una reunión, cita, turno, llamada o demo.
+  1. Si el usuario pide explícitamente una cita, entrevista, reunión, turno, llamada, demo u otro evento.
   2. Si el usuario pregunta por horarios disponibles o disponibilidad.
   3. Si el usuario acepta ver horarios después de que se los ofrezcas en texto.
 
   CUÁNDO NO USARLA:
   1. No la uses solo porque el usuario preguntó por servicios, precios, catálogo o información general.
-  2. No la uses para ofrecer reunión de forma automática después de cada respuesta comercial.
+  2. No la uses para ofrecer eventos de forma automática después de cada respuesta comercial.
   3. No la uses si todavía estás en etapa de descubrimiento y el usuario no pidió agenda ni horarios.
 
   REGLAS DE USO:
-  1. Si el usuario quiere una reunión pero no dijo fecha ni hora, ejecuta "check_next_days".
+  1. Si el usuario quiere agendar pero no dijo fecha ni hora, ejecuta "check_next_days".
   2. Si el usuario ya eligió horario y dio Nombre/Email/Teléfono, PRIMERO debes mostrar un resumen con fecha, hora, nombre, email, teléfono y motivo, y pedir confirmación explícita o correcciones.
   3. Solo cuando el usuario confirme explícitamente que esos datos son correctos, ejecuta "schedule" con confirmedByUser=true.
-  4. La acción "schedule" ES LA ÚNICA forma de registrar la cita. Si no ejecutas "schedule", la cita no existe.`,
+  4. La acción "schedule" ES LA ÚNICA forma de registrar la cita/evento. Si no ejecutas "schedule", la cita no existe.`,
   schema: z.object({
     action: z.enum(["check_availability", "check_next_days", "schedule"]).default("check_next_days"),
     clientId: z.string(),
@@ -79,7 +79,6 @@ export const appointmentManagerTool = new DynamicStructuredTool({
              return "⛔ ERROR: Faltan fecha y hora para agendar.";
         }
         const cleanDate = date.split('T')[0];
-        const normalizedTime = normalizeTimeInput(time);
         if (!finalUserInfo?.name || !finalUserInfo?.email) {
           return "⛔ ERROR CRÍTICO: Para agendar necesito nombre y email. Si ya los diste, por favor repítelos o asegúrate de que se hayan guardado.";
         }
@@ -90,7 +89,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
             "⚠️ ANTES DE CREAR LA SOLICITUD debes pedir confirmación explícita al usuario.",
             "Compartile este resumen y preguntale si está correcto o si quiere corregir algo:",
             `- Fecha: ${friendlyDate}`,
-            `- Hora: ${normalizedTime}`,
+            `- Hora: ${time}`,
             `- Nombre: ${finalUserInfo.name}`,
             `- Email: ${finalUserInfo.email}`,
             `- Teléfono: ${finalUserInfo.phone || "No proporcionado"}`,
@@ -99,9 +98,9 @@ export const appointmentManagerTool = new DynamicStructuredTool({
           ].join("\n");
         }
         const { availableSlots } = await getAvailableSlots(clientId, cleanDate);
-        if (!availableSlots.includes(normalizedTime)) return `⛔ El horario ${normalizedTime} ya no está disponible para el ${formatFriendlyDate(cleanDate)}. Por favor elige otro.`;
+        if (!availableSlots.includes(time)) return `⛔ El horario ${time} ya no está disponible para el ${formatFriendlyDate(cleanDate)}. Por favor elige otro.`;
         const meetingRef = await db.collection("meetings").add({
-          clientId, date: cleanDate, time: normalizedTime, 
+          clientId, date: cleanDate, time, 
           customerName: finalUserInfo.name, 
           customerEmail: finalUserInfo.email,
           customerPhone: finalUserInfo.phone || "No proporcionado",
@@ -117,7 +116,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
                     customerEmail: finalUserInfo.email!,
                     customerPhone: finalUserInfo.phone,
                     date: cleanDate, 
-                    time: normalizedTime, 
+                    time, 
                     topic: finalTopic, 
                     meetingId: meetingRef.id 
                 });
@@ -129,14 +128,14 @@ export const appointmentManagerTool = new DynamicStructuredTool({
             await sendRequestReceivedToUser(finalUserInfo.email!, {
                 customerName: finalUserInfo.name!,
                 date: cleanDate,
-                time: normalizedTime,
+                time,
                 topic: finalTopic
             });
         } catch(e) {
             console.error("❌ Error enviando email de recepción al usuario:", e);
         }
         const friendlyDate = formatFriendlyDate(cleanDate);
-            return `✅ SOLICITUD CREADA CON ÉXITO para el ${friendlyDate} a las ${normalizedTime}hs. ID: ${meetingRef.id}. Avísale al usuario que está pendiente de confirmación por parte del administrador.`;
+        return `✅ SOLICITUD CREADA CON ÉXITO para el ${friendlyDate} a las ${time}hs. ID: ${meetingRef.id}. Avísale al usuario que está pendiente de confirmación por parte del administrador.`;
       }
       if (effectiveAction === "check_next_days") {
         const daysAhead = 7;
@@ -149,15 +148,22 @@ export const appointmentManagerTool = new DynamicStructuredTool({
           const { availableSlots, businessHours } = await getAvailableSlots(clientId, isoDate);
           if (businessHours.enabled && availableSlots.length > 0) {
             const formattedDate = formatFriendlyDate(isoDate);
-            results.push(`📅 ${formattedDate}: ${formatGroupedSlots(availableSlots)}`);
+            // Agrupar horarios por bloques de 4 para mejor visualización
+            const grouped = availableSlots.reduce((acc, slot, idx) => {
+              if (idx % 4 === 0) acc.push([]);
+              acc[acc.length - 1].push(slot);
+              return acc;
+            }, [] as string[][]);
+            results.push(`📅 ${formattedDate}:\n  ${grouped.map(g => g.join("  |  ")).join("\n  ")}`);
           }
         }
-        return results.length > 0 ? `Horarios disponibles:\n\n${results.join("\n")}` : "Lo siento, no tengo disponibilidad en los próximos días hábiles.";
+        return results.length > 0 ? `Horarios disponibles:\n\n${results.join("\n\n")}` : "Lo siento, no tengo disponibilidad en los próximos días hábiles.";
       }
       return "Acción no reconocida.";
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error en appointment_manager:", error);
-      return `Error técnico: ${error.message}`;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return `Error técnico: ${errorMessage}`;
     }
   },
 });

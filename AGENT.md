@@ -7,17 +7,19 @@ Este documento define el comportamiento y los estándares de razonamiento para t
 2. **Pensamiento Crítico**: Usar las capacidades de razonamiento de Gemini 2.5 para validar si la información recuperada del RAG es realmente relevante.
 3. **Persistencia de Estado**: No preguntar datos que ya están presentes en el `AgentState` o en `agent_metadata` de sesiones previas.
 4. **Respuesta Concisa**: Preferir la brevedad y la acción (ofrecer el siguiente paso) sobre párrafos largos de texto explicativo.
-5. **Agendado Completo**: NUNCA proceder a agendar (`appointment_manager: schedule`) sin tener confirmados Nombre, Email y Teléfono.
+5. **Agendado Completo**: NUNCA proceder a agendar (`appointment_manager: schedule`) sin tener confirmados Nombre, Email y Teléfono. Antes de ejecutar `schedule`, mostrar SIEMPRE un resumen final con todos los datos y pedir confirmación explícita.
 6. **Audio Breve**: Si la respuesta será sintetizada a voz, priorizar una respuesta corta, natural y fácil de escuchar.
 
 ## 🛠️ Protocolo de Herramientas (Tools)
 - **appointment_manager**:
+  - Usar SOLO si el usuario pide explícitamente agendar, ver horarios, o acepta una reunión.
   - La acción `schedule` **SOLO** crea una solicitud pendiente.
   - La creación del evento en Google Calendar ocurre automáticamente **DESPUÉS** de la confirmación del administrador.
   - Antes de `schedule`, el usuario debe confirmar explícitamente el resumen final de fecha, hora y datos de contacto.
   - Se debe informar al usuario que su solicitud está "recibida y pendiente de confirmación".
+  - Si el usuario no dio fecha/hora, ejecutar primero `check_next_days` para mostrar disponibilidad.
 - **Validación**: Todas las entradas a herramientas deben pasar por el esquema de Zod definido.
-- **Feedback**: Si una herramienta falla, el agente debe informar al usuario de forma proactiva y proponer una alternativa o reintento.
+- **Feedback**: Si una herramienta falla, el agente debe informar al usuario de forma proactiva y proponer una alternativa o reintento. Si la herramienta devuelve horarios, mostrarlos SIEMPRE tal cual al usuario, sin resumir ni ocultar.
 - **RAG**: El conocimiento se consulta bajo demanda. Si `knowledge_retriever` no devuelve resultados y la consulta parece de catálogo o precios, el agente debe intentar `product_catalog`. Si `product_catalog` no alcanza, debe revisar documentos del negocio antes de responder que no hay datos.
 
 ## 🛡️ Ética y Seguridad

@@ -998,6 +998,7 @@
                     <option value="sales">Ventas</option>
                     <option value="support">Soporte</option>
                     <option value="scheduling">Agendamiento</option>
+                    <option value="test">Test</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -1140,13 +1141,6 @@
           <div style="display:flex;gap:6px;align-items:center">
             <code id="api-info-chat-link" style="font-size:11px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1"></code>
             <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('api-info-chat-link').textContent)" title="Copiar"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
-          </div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Demo del Agente</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <a id="agent-demo-link" href="#" target="_blank" style="font-size:11px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1;text-decoration:underline;color:var(--text-primary)">Abrir demo</a>
-            <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('agent-demo-link').href)" title="Copiar demo link"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
           </div>
         </div>
 
@@ -1506,9 +1500,7 @@
       document.getElementById('api-info-agentId').textContent = agentId;
       document.getElementById('api-info-url').textContent = apiUrl;
       document.getElementById('api-info-chat-link').textContent = `${apiUrl}/widget.html?agentId=${agentId}&clientId=${clientId}`;
-      document.getElementById('agent-demo-link').href = `https://dev.ovnistudio.com.ar/agent-demo?clientId=${clientId}&agentId=${agentId}`;
-      openModal('modal-api-tokens');
-      loadApiTokens(clientId);
+s(clientId);
       lucide.createIcons();
     };
 
@@ -2564,47 +2556,67 @@
       selectTestAgent(agentId, name, clientId);
     };
 
-    window.sendTestMessage = async () => {
-      const input = document.getElementById('test-input');
-      const message = input.value.trim();
-      if (!message || !testAgentId) return;
-      
-      input.value = '';
-      const container = document.getElementById('test-messages');
-      
-      const userMsg = document.createElement('div');
-      userMsg.className = 'chat-message user';
-      userMsg.textContent = message;
-      container.appendChild(userMsg);
-      
-      const assistantMsg = document.createElement('div');
-      assistantMsg.className = 'chat-message assistant';
-      assistantMsg.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px;animation:spin 1s linear infinite"></i> Pensando...';
-      container.appendChild(assistantMsg);
-      
-      container.scrollTop = container.scrollHeight;
-      lucide.createIcons({ nodes: [assistantMsg] });
-      
-      try {
-        const data = await apiFetch('/api/chat/invoke', {
-          method: 'POST',
-          body: JSON.stringify({
-            agentId: testAgentId,
-            clientId: testClientId,
-            message,
-            threadId: testThreadId
-          })
-        });
-        
-        testThreadId = data.data.threadId;
-        assistantMsg.innerHTML = `<span style="white-space:pre-wrap">${data.data.response}</span>`;
-      } catch (e) {
-        assistantMsg.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
+window.sendTestMessage = async () => {
+  const input = document.getElementById('test-input');
+  const message = input.value.trim();
+  if (!message || !testAgentId) return;
+
+  input.value = '';
+  const container = document.getElementById('test-messages');
+
+  const userMsg = document.createElement('div');
+  userMsg.className = 'chat-message user';
+  userMsg.textContent = message;
+  container.appendChild(userMsg);
+
+  const assistantMsg = document.createElement('div');
+  assistantMsg.className = 'chat-message assistant';
+  assistantMsg.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px;animation:spin 1s linear infinite"></i> Pensando...';
+  container.appendChild(assistantMsg);
+
+  container.scrollTop = container.scrollHeight;
+  lucide.createIcons({ nodes: [assistantMsg] });
+
+  try {
+    // Retrieve the token for the agent if available
+    let agentToken = null;
+    try {
+      const tokensRaw = localStorage.getItem('ovni_agent_tokens');
+      if (tokensRaw) {
+        const tokens = JSON.parse(tokensRaw);
+        if (tokens && typeof tokens === 'object' && tokens[testAgentId]) {
+          agentToken = tokens[testAgentId];
+        }
       }
-      
-      container.scrollTop = container.scrollHeight;
-      lucide.createIcons({ nodes: [assistantMsg] });
+    } catch {}
+
+    const headers = {
+      'x-client-id': testClientId
     };
+    if (agentToken) {
+      headers['x-agent-token'] = agentToken;
+    }
+
+    const data = await apiFetch('/api/chat/invoke', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        agentId: testAgentId,
+        clientId: testClientId,
+        message,
+        threadId: testThreadId
+      })
+    });
+
+    testThreadId = data.data.threadId;
+    assistantMsg.innerHTML = `<span style="white-space:pre-wrap">${data.data.response}</span>`;
+  } catch (e) {
+    assistantMsg.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
+  }
+
+  container.scrollTop = container.scrollHeight;
+  lucide.createIcons({ nodes: [assistantMsg] });
+};
 
     // ===== INIT =====
     checkAuth();

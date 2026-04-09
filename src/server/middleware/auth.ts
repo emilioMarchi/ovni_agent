@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const MASTER_PASSWORD = process.env.MASTER_ADMIN_PASSWORD || "admin123";
-const MASTER_CLIENT_ID = process.env.MASTER_CLIENT_ID || process.env.MASTER_CLIENT_IDS?.split(",")[0] || "";
+const MASTER_CLIENT_ID = process.env.MASTER_CLIENT_ID || "";
 
 export interface AuthenticatedRequest extends Request {
   masterClientId?: string;
@@ -18,7 +18,7 @@ export function masterAuth(req: AuthenticatedRequest, res: Response, next: NextF
     return;
   }
 
-  if (clientId !== MASTER_CLIENT_ID) {
+  if (!MASTER_CLIENT_ID || clientId !== MASTER_CLIENT_ID) {
     res.status(403).json({ error: "Acceso denegado. No tienes permisos de Master Admin." });
     return;
   }
@@ -28,8 +28,8 @@ export function masterAuth(req: AuthenticatedRequest, res: Response, next: NextF
 }
 
 export function isMasterClient(clientId: string): boolean {
-  const clients = process.env.MASTER_CLIENT_IDS?.split(",") || [];
-  return clients.includes(clientId);
+  if (!clientId || !MASTER_CLIENT_ID) return false;
+  return clientId === MASTER_CLIENT_ID;
 }
 
 export function verifyMasterPassword(password: string): boolean {

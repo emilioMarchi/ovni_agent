@@ -123,6 +123,7 @@ export async function toolNodeWithLogs(state) {
     }
     // IMPORTANTE: Devolvemos el mensaje parcheado para que reemplace al original en el estado
     // y luego los mensajes de resultado de las herramientas.
+    // Si el resultado de la herramienta es un string con horarios, no lo filtres ni modifiques.
     const finalMessages = [patchedMessage, ...result.messages];
     // Drain debug events from collector into state if debug mode is on
     if (state.debugMode) {
