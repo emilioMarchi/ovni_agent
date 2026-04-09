@@ -1129,18 +1129,19 @@
             </div>
           </div>
         </div>
+
         <div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">API URL</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Enlace Widget</div>
           <div style="display:flex;gap:6px;align-items:center">
             <code id="api-info-url" style="font-size:12px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1"></code>
             <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('api-info-url').textContent)" title="Copiar"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
           </div>
         </div>
         <div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Enlace Chat Directo</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Enlace Chat Demo</div>
           <div style="display:flex;gap:6px;align-items:center">
-            <code id="api-info-chat-link" style="font-size:11px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1"></code>
-            <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('api-info-chat-link').textContent)" title="Copiar"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
+            <a id="api-info-chat-link" href="#" target="_blank" style="font-size:11px;background:var(--accent-dim);padding:4px 8px;border-radius:4px;word-break:break-all;flex:1;text-decoration:underline;color:var(--accent)" rel="noopener">enlace</a>
+            <button class="btn btn-ghost btn-icon btn-sm" onclick="copyText(document.getElementById('api-info-chat-link').href)" title="Copiar"><i data-lucide="copy" style="width:12px;height:12px"></i></button>
           </div>
         </div>
 
@@ -1495,12 +1496,22 @@
     window.openApiTokensModal = async function(agentId, clientId) {
       apiTokensAgentId = agentId;
       apiTokensClientId = clientId;
-      const apiUrl = getWidgetServerUrl();
+      const isLocal = isLocalWidgetHost(window.location.hostname);
+      const widgetUrl = isLocal
+        ? `http://localhost:8080/widget.html?agentId=${agentId}&clientId=${clientId}`
+        : `https://api.ovnistudio.com.ar/widget.html?agentId=${agentId}&clientId=${clientId}`;
+      const demoUrl = isLocal
+        ? `http://localhost:3000/agent-demo?clientId=${clientId}&agentId=${agentId}`
+        : `https://dev.ovnistudio.com.ar/agent-demo?clientId=${clientId}&agentId=${agentId}`;
+
       document.getElementById('api-info-clientId').textContent = clientId;
       document.getElementById('api-info-agentId').textContent = agentId;
-      document.getElementById('api-info-url').textContent = apiUrl;
-      document.getElementById('api-info-chat-link').textContent = `${apiUrl}/widget.html?agentId=${agentId}&clientId=${clientId}`;
-s(clientId);
+      document.getElementById('api-info-url').textContent = widgetUrl;
+      const chatLink = document.getElementById('api-info-chat-link');
+      chatLink.href = demoUrl;
+      chatLink.textContent = demoUrl;
+      openModal('modal-api-tokens');
+      loadApiTokens(clientId);
       lucide.createIcons();
     };
 
