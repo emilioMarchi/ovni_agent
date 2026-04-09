@@ -171,17 +171,19 @@ router.post("/invoke", widgetWriteRateLimit, authGuard, async (req: Request, res
     let toolsUsed: Array<{ name: string, description: string, args: any }> = [];
     let toolRawResults: Array<{ name: string, result: any }> = [];
     for (const msg of result.messages) {
-      // Mensaje de tool_call (ejecutada por el agente)
-      if (msg.tool_call_id && msg.name) {
-        toolsUsed.push({
-          name: msg.name,
-          description: toolDescriptions[msg.name] || '',
-          args: msg.args || msg.arguments || {},
-        });
-        toolRawResults.push({
-          name: msg.name,
-          result: msg.content,
-        });
+      // Detect tool calls in AIMessage (LangChain v0.3+)
+      if (msg && typeof msg === 'object' && Array.isArray((msg as any).tool_calls)) {
+        for (const tc of (msg as any).tool_calls) {
+          toolsUsed.push({
+            name: tc.name,
+            description: toolDescriptions[tc.name] || '',
+            args: tc.args || {},
+          });
+          toolRawResults.push({
+            name: tc.name,
+            result: msg.content,
+          });
+        }
       }
     }
 

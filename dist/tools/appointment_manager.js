@@ -46,12 +46,21 @@ export const appointmentManagerTool = new DynamicStructuredTool({
         confirmedByUser: z.boolean().optional().describe("Solo true si el usuario ya confirmó explícitamente que los datos de la reunión son correctos."),
     }),
     func: async (args) => {
+        // --- DEBUG: Loggear acción interna ---
         try {
+            const { pushDebugEvent } = await import("../utils/debugCollector.js");
             // Validación de argumentos mínimos
             if (!args || typeof args !== 'object') {
                 return '⛔ ERROR: Argumentos inválidos para appointment_manager.';
             }
             const { action = "check_next_days", clientId, threadId, date, time, userInfo, topic, confirmedByUser } = args;
+            // Log de acción interna
+            pushDebugEvent && pushDebugEvent({
+                node: "appointment_manager",
+                timestamp: new Date().toISOString(),
+                type: "internal_action",
+                data: { action, args }
+            }, threadId);
             if (!clientId || typeof clientId !== 'string' || clientId.trim() === '') {
                 return '⛔ ERROR: clientId es requerido para appointment_manager.';
             }

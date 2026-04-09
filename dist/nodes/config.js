@@ -99,7 +99,9 @@ export async function configNode(state, _, config) {
             });
         }
         // Devolvemos las actualizaciones al estado
+        // Forzar que el clientId correcto (de Firestore) siempre se propague al estado
         const hydratedConfig = {
+            ...state,
             clientId: resolvedClientId,
             agentName: agentData.name || "",
             agentDescription: agentData.description || "",

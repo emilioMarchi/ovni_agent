@@ -195,7 +195,8 @@ export const knowledgeRetrieverTool = new DynamicStructuredTool({
         });
         console.log(`[DEBUG] Fragmentos para docId ${docId} (${(resultRaw.matches || []).length}):`);
         for (const m of (resultRaw.matches || [])) {
-          console.log(` - filename: ${m.metadata?.filename}, docType: ${m.metadata?.docType}, score: ${m.score}, desc: ${(m.metadata?.description || '').slice(0, 60)}`);
+          const desc = typeof m.metadata?.description === 'string' ? m.metadata.description.slice(0, 60) : Array.isArray(m.metadata?.description) ? m.metadata.description.join(' ').slice(0, 60) : '';
+          console.log(` - filename: ${m.metadata?.filename}, docType: ${m.metadata?.docType}, score: ${m.score}, desc: ${desc}`);
         }
         // Filtrar en memoria: solo docType 'reference' o sin docType
         const filtered = (resultRaw.matches || [])

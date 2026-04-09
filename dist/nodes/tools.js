@@ -16,12 +16,13 @@ function injectAllowedDocIds(message, state) {
     // Parchar tool_calls del mensaje (formato LangChain)
     if (message.tool_calls && Array.isArray(message.tool_calls)) {
         const patchedToolCalls = message.tool_calls.map((tc) => {
+            // Forzar clientId desde el estado (siempre sobrescribe lo que venga en tc.args)
             if (tc.name === "knowledge_retriever") {
                 return {
                     ...tc,
                     args: {
                         ...tc.args,
-                        clientId: tc.args?.clientId || clientId,
+                        clientId: clientId,
                         allowedDocIds,
                     },
                 };
@@ -31,7 +32,7 @@ function injectAllowedDocIds(message, state) {
                     ...tc,
                     args: {
                         ...tc.args,
-                        clientId: tc.args?.clientId || clientId,
+                        clientId: clientId,
                         allowedDocIds,
                     },
                 };

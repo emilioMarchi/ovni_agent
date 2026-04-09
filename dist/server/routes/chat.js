@@ -127,15 +127,53 @@ router.post("/invoke", widgetWriteRateLimit, authGuard, async (req, res) => {
         console.log(`📨 Invocando agente ${agentId} para cliente ${clientId}${endSession ? ' (FIN DE SESIÓN)' : ''}`);
         const result = await graph.invoke(inputState, config);
         const lastMessage = result.messages[result.messages.length - 1];
+        // --- NUEVO: Mapear tools usadas en la respuesta ---
+        // Importar tools y armar diccionario nombre -> descripción
+        const { tools } = await import("../../tools/index.js");
+        const toolDescriptions = Object.fromEntries(tools.map((t) => [t.name, (t.description || '').split('\n')[0].trim()]));
+        // Buscar tool_calls en los mensajes
+        let toolsUsed = [];
+        let toolRawResults = [];
+        for (const msg of result.messages) {
+            // Detect tool calls in AIMessage (LangChain v0.3+)
+            if (msg && typeof msg === 'object' && Array.isArray(msg.tool_calls)) {
+                for (const tc of msg.tool_calls) {
+                    toolsUsed.push({
+                        name: tc.name,
+                        description: toolDescriptions[tc.name] || '',
+                        args: tc.args || {},
+                    });
+                    toolRawResults.push({
+                        name: tc.name,
+                        result: msg.content,
+                    });
+                }
+            }
+        }
+        // Si no se detectaron tools en los mensajes, buscar en lastMessage.additional_kwargs.tool_calls
+        if (toolsUsed.length === 0 && lastMessage?.additional_kwargs?.tool_calls) {
+            for (const tc of lastMessage.additional_kwargs.tool_calls) {
+                toolsUsed.push({
+                    name: tc.function?.name,
+                    description: toolDescriptions[tc.function?.name] || '',
+                    args: tc.function?.arguments || {},
+                });
+            }
+        }
         const responseData = {
             agentId,
             response: lastMessage.content,
             threadId: config.configurable.thread_id,
+            toolsUsed,
         };
         if (result.audioBuffer) {
             responseData.audioBase64 = result.audioBuffer.toString("base64");
         }
-        if (debug && result.debugTrace) {
+        // --- NUEVO: Incluir resultados crudos de tools en _debug ---
+        if (toolRawResults.length > 0) {
+            responseData._debug = result.debugTrace ? [...(result.debugTrace || []), ...toolRawResults] : toolRawResults;
+        }
+        else if (debug && result.debugTrace) {
             responseData._debug = result.debugTrace;
         }
         res.json({ success: true, data: responseData });
