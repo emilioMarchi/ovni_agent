@@ -586,7 +586,9 @@
 
       <div class="form-group">
         <label class="form-label">Contraseña</label>
-        <input type="password" id="login-password" class="form-input" placeholder="••••••••" onkeypress="if(event.key==='Enter')doLogin()">
+          <form id="login-form" onsubmit="doLogin(); return false;" style="margin:0;">
+            <input type="password" id="login-password" class="form-input" placeholder="••••••••" autocomplete="current-password">
+          </form>
       </div>
 
       <div id="login-error" style="background: var(--red-dim); color: var(--red); padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; display: none; border: 1px solid rgba(248,113,113,0.2);"></div>
@@ -595,6 +597,14 @@
         <i data-lucide="log-in" style="width:16px;height:16px"></i>
         Acceder al Panel
       </button>
+
+      <script>
+        document.getElementById('login-password').addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') {
+            doLogin();
+          }
+        });
+      </script>
     </div>
   </div>
 
@@ -1279,7 +1289,7 @@
 
     function resetDocumentProcessingPanel() {
       const panel = document.getElementById('doc-processing-panel');
-      panel.style.display = 'none';
+      panel.style.display =
       panel.innerHTML = '';
     }
 
@@ -1291,7 +1301,7 @@
         return;
       }
 
-      const status = doc.status || 'processing';
+      const status = doc.status
       const progress = Math.max(0, Math.min(100, Number(doc.processingProgress || 0)));
       const stage = formatDocumentStage(doc.processingStage);
       const logs = Array.isArray(doc.processingLogs) ? doc.processingLogs : [];
@@ -1497,6 +1507,7 @@
       apiTokensAgentId = agentId;
       apiTokensClientId = clientId;
       const isLocal = isLocalWidgetHost(window.location.hostname);
+      
       const widgetUrl = isLocal
         ? `http://localhost:8080/widget.html?agentId=${agentId}&clientId=${clientId}`
         : `https://api.ovnistudio.com.ar/widget.html?agentId=${agentId}&clientId=${clientId}`;
@@ -1816,10 +1827,10 @@
         showToast('Admin actualizado', 'success');
         closeModal('modal-admin-edit');
         loadAdmins();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
-    };
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      };
 
     // ===== AGENTS =====
     async function loadAdminsForAgents() {
@@ -2562,72 +2573,67 @@
       selectTestAgent(agentId, name, clientId);
     };
 
-    window.testThisAgent = (agentId, name, clientId) => {
-      showTab('test');
-      selectTestAgent(agentId, name, clientId);
-    };
+    window.sendTestMessage = async () => {
+      const input = document.getElementById('test-input');
+      const message = input.value.trim();
+      if (!message || !testAgentId) return;
 
-window.sendTestMessage = async () => {
-  const input = document.getElementById('test-input');
-  const message = input.value.trim();
-  if (!message || !testAgentId) return;
+      input.value = '';
+      const container = document.getElementById('test-messages');
 
-  input.value = '';
-  const container = document.getElementById('test-messages');
+      const userMsg = document.createElement('div');
+      userMsg.className = 'chat-message user';
+      userMsg.textContent = message;
+      container.appendChild(userMsg);
 
-  const userMsg = document.createElement('div');
-  userMsg.className = 'chat-message user';
-  userMsg.textContent = message;
-  container.appendChild(userMsg);
+      const assistantMsg = document.createElement('div');
+      assistantMsg.className = 'chat-message assistant';
+      assistantMsg.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px;animation:spin 1s linear infinite"></i> Pensando...';
+      container.appendChild(assistantMsg);
 
-  const assistantMsg = document.createElement('div');
-  assistantMsg.className = 'chat-message assistant';
-  assistantMsg.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px;animation:spin 1s linear infinite"></i> Pensando...';
-  container.appendChild(assistantMsg);
+      container.scrollTop = container.scrollHeight;
+      lucide.createIcons({ nodes: [assistantMsg] });
 
-  container.scrollTop = container.scrollHeight;
-  lucide.createIcons({ nodes: [assistantMsg] });
+      try {
+        // Retrieve the token for the agent if available
+        let agentToken = null;
+        try {
+          const tokensRaw = localStorage.getItem('ovni_agent_tokens');
+          if (tokensRaw) {
+            const tokens = JSON.parse(tokensRaw);
+            if (tokens && typeof tokens === 'object' && tokens[testAgentId]) {
+              agentToken = tokens[testAgentId];
+            }
+          }
+        } catch {}
 
-  try {
-    // Retrieve the token for the agent if available
-    let agentToken = null;
-    try {
-      const tokensRaw = localStorage.getItem('ovni_agent_tokens');
-      if (tokensRaw) {
-        const tokens = JSON.parse(tokensRaw);
-        if (tokens && typeof tokens === 'object' && tokens[testAgentId]) {
-          agentToken = tokens[testAgentId];
+        const headers = {
+          'x-client-id': testClientId
+        };
+        if (agentToken) {
+          headers['x-agent-token'] = agentToken;
         }
+
+        const data = await apiFetch('/api/chat/invoke', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            agentId: testAgentId,
+            clientId: testClientId,
+            message,
+            threadId: testThreadId
+          })
+        });
+
+        testThreadId = data.data.threadId;
+        assistantMsg.innerHTML = `<span style="white-space:pre-wrap">${data.data.response}</span>`;
+      } catch (e) {
+        assistantMsg.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
       }
-    } catch {}
 
-    const headers = {
-      'x-client-id': testClientId
+      container.scrollTop = container.scrollHeight;
+      lucide.createIcons({ nodes: [assistantMsg] });
     };
-    if (agentToken) {
-      headers['x-agent-token'] = agentToken;
-    }
-
-    const data = await apiFetch('/api/chat/invoke', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        agentId: testAgentId,
-        clientId: testClientId,
-        message,
-        threadId: testThreadId
-      })
-    });
-
-    testThreadId = data.data.threadId;
-    assistantMsg.innerHTML = `<span style="white-space:pre-wrap">${data.data.response}</span>`;
-  } catch (e) {
-    assistantMsg.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
-  }
-
-  container.scrollTop = container.scrollHeight;
-  lucide.createIcons({ nodes: [assistantMsg] });
-};
 
     // ===== INIT =====
     checkAuth();
@@ -2649,3 +2655,28 @@ window.sendTestMessage = async () => {
   </script>
 </body>
 </html>
+    <script>
+      // Aseguramos que getWidgetServerUrl esté disponible globalmente
+      function isLocalWidgetHost(hostname) {
+        return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+      }
+      function getWidgetServerUrl() {
+        const currentHost = window.location.hostname;
+        return isLocalWidgetHost(currentHost) ? 'http://localhost:8080' : 'https://api.ovnistudio.com.ar';
+      }
+    </script>
+    <script src="/ovni-loader.js"></script>
+    <script>
+      window.addEventListener('load', () => {
+        if (!window.OvniWidget || document.getElementById('ovniWidget')) {
+          return;
+        }
+        window.OvniWidget.init({
+          agentId: 'agent_a5de54451f36487aa43a9642',
+          clientId: 'org_2d8f74a1-b9c5-4e2a-bb6d-f492a8e310d5',
+          apiUrl: getWidgetServerUrl()
+        });
+      });
+    </script>
+  </body>
+  </html>
