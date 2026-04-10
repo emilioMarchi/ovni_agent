@@ -69,21 +69,38 @@ export async function modelNode(state: AgentStateType) {
 
   const allMessages = [
     new SystemMessage(systemPrompt + (formattedHistory ? "\n" + formattedHistory : "")),
-    ...(messages || []).filter(msg => msg !== undefined && msg !== null && msg.content !== "")
+    ...(messages || []).filter(msg => {
+      if (!msg) return false;
+      // Mantener el mensaje si tiene contenido O si tiene llamadas a herramientas (tool_calls)
+      return (msg.content && msg.content !== "") || ((msg as any).tool_calls && (msg as any).tool_calls.length > 0);
+    })
   ];
 
   let response;
-  try {
-    response = await modelWithTools.invoke(allMessages);
-  } catch (err) {
-    console.error("[MODEL] Error invoking model:", err);
-    // Log the message count and types to help debug "poisonous" histories
-    console.error("[MODEL] Debug - All Messages count:", allMessages.length);
-    console.error("[MODEL] Debug - Message types:", allMessages.map(m => m.constructor.name));
-    
-    return {
-      messages: [new AIMessage("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo más tarde.")],
-    };
+  let attempts = 0;
+  const maxAttempts = 2;
+
+  while (attempts < maxAttempts) {
+    try {
+      response = await modelWithTools.invoke(allMessages);
+      break; // Éxito, salimos del bucle
+    } catch (err) {
+      attempts++;
+      const isLibraryError = err instanceof TypeError && err.message.includes("reading 'length'");
+      
+      if (isLibraryError && attempts < maxAttempts) {
+        console.warn(`[MODEL] Error de librería detectado. Reintentando (${attempts}/${maxAttempts})...`);
+        continue; 
+      }
+
+      console.error(`[MODEL] Error invoking model (Attempt ${attempts}):`, err);
+      console.error("[MODEL] Debug - All Messages count:", allMessages.length);
+      console.error("[MODEL] Debug - Message types:", allMessages.map(m => m.constructor.name));
+      
+      return {
+        messages: [new AIMessage("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo más tarde.")],
+      };
+    }
   }
 
   if (response && Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
