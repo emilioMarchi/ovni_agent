@@ -1,5 +1,5 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage, HumanMessage } from "@langchain/core/messages";
 import { AgentStateType } from "../state/state.js";
 import { tools } from "../tools/index.js";
 import { SystemInstructionBuilder } from "../utils/SystemInstructionBuilder.js";
@@ -67,35 +67,80 @@ export async function modelNode(state: AgentStateType) {
       "\n--------------------------------------\n"
     : "";
 
+  // 1. Filtrado inicial y limpieza de mensajes vacíos
+  const filteredMessages = (messages || []).filter(msg => {
+    if (!msg) return false;
+    return (msg.content && msg.content !== "") || ((msg as any).tool_calls && (msg as any).tool_calls.length > 0);
+  });
+
+  // 2. Saneamiento de secuencia para Gemini (Evitar crashes de la librería)
+  const sanitizedMessages: any[] = [];
+  for (let i = 0; i < filteredMessages.length; i++) {
+    const msg = filteredMessages[i];
+    const prevMsg = sanitizedMessages[sanitizedMessages.length - 1];
+
+    // A. Evitar mensajes consecutivos del mismo rol (Colapsar)
+    if (prevMsg) {
+      const currentRole = msg instanceof HumanMessage ? 'human' : msg instanceof AIMessage ? 'ai' : msg instanceof ToolMessage ? 'tool' : 'unknown';
+      const prevRole = prevMsg instanceof HumanMessage ? 'human' : prevMsg instanceof AIMessage ? 'ai' : prevMsg instanceof ToolMessage ? 'tool' : 'unknown';
+
+      if (currentRole === prevRole && currentRole !== 'tool') {
+        // Si es el mismo rol, concatenamos el contenido al mensaje anterior en lugar de añadir uno nuevo
+        if (prevMsg.content && typeof prevMsg.content === 'string') {
+          prevMsg.content += `\n${msg.content || ""}`;
+          continue;
+        }
+      }
+    }
+
+    // B. Validar ToolMessages: Debe haber un AIMessage con tool_calls justo antes
+    if (msg instanceof ToolMessage) {
+      if (!prevMsg || !(prevMsg instanceof AIMessage) || !prevMsg.tool_calls || prevMsg.tool_calls.length === 0) {
+        console.warn(`[MODEL] Eliminando ToolMessage huérfano (sin llamada previa). Evitando crash de librería.`);
+        continue; // Saltamos este mensaje porque rompería la secuencia de Gemini
+      }
+    }
+
+    sanitizedMessages.push(msg);
+  }
+
   const allMessages = [
     new SystemMessage(systemPrompt + (formattedHistory ? "\n" + formattedHistory : "")),
-    ...(messages || []).filter(msg => {
-      if (!msg) return false;
-      // Mantener el mensaje si tiene contenido O si tiene llamadas a herramientas (tool_calls)
-      return (msg.content && msg.content !== "") || ((msg as any).tool_calls && (msg as any).tool_calls.length > 0);
-    })
+    ...sanitizedMessages
   ];
 
   let response;
   let attempts = 0;
-  const maxAttempts = 2;
+  const maxAttempts = 3; // Aumentamos a 3 para incluir el intento de limpieza
+  let currentMessages = [...allMessages];
 
   while (attempts < maxAttempts) {
     try {
-      response = await modelWithTools.invoke(allMessages);
+      response = await modelWithTools.invoke(currentMessages);
       break; // Éxito, salimos del bucle
     } catch (err) {
       attempts++;
       const isLibraryError = err instanceof TypeError && err.message.includes("reading 'length'");
       
-      if (isLibraryError && attempts < maxAttempts) {
-        console.warn(`[MODEL] Error de librería detectado. Reintentando (${attempts}/${maxAttempts})...`);
-        continue; 
+      if (isLibraryError) {
+        if (attempts === 2) {
+          console.warn(`[MODEL] El error persiste tras el primer reintento. Aplicando LIMPIEZA DE EMERGENCIA al historial...`);
+          // Mantenemos solo el SystemMessage (índice 0) y el último mensaje del usuario
+          const systemMsg = currentMessages[0];
+          const lastUserMsg = currentMessages[currentMessages.length - 1];
+          currentMessages = [systemMsg, lastUserMsg];
+          console.log(`[MODEL] Historial simplificado a ${currentMessages.length} mensajes para evitar crash de librería.`);
+          continue;
+        }
+        if (attempts < maxAttempts) {
+          console.warn(`[MODEL] Error de librería detectado. Reintentando (${attempts}/${maxAttempts})...`);
+          continue; 
+        }
       }
 
       console.error(`[MODEL] Error invoking model (Attempt ${attempts}):`, err);
-      console.error("[MODEL] Debug - All Messages count:", allMessages.length);
-      console.error("[MODEL] Debug - Message types:", allMessages.map(m => m.constructor.name));
+      console.error("[MODEL] Debug - All Messages count:", currentMessages.length);
+      console.error("[MODEL] Debug - Message types:", currentMessages.map(m => m.constructor.name));
       
       return {
         messages: [new AIMessage("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo más tarde.")],
@@ -119,7 +164,7 @@ export async function modelNode(state: AgentStateType) {
         allowedTools: allowedTools.map(t => t.name),
         toolCalls: response?.tool_calls?.map((tc: any) => ({ name: tc.name, args: tc.args })) || [],
         respondedDirectly: !response?.tool_calls?.length,
-        responsePreview: !response?.tool_calls?.length ? (response.content as string)?.substring(0, 300) : undefined,
+        responsePreview: !response?.tool_calls?.length ? (response?.content as string)?.substring(0, 300) : undefined,
       },
     });
   }

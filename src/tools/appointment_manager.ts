@@ -63,9 +63,26 @@ export const appointmentManagerTool = new DynamicStructuredTool({
         type: "internal_action",
         data: { action, args }
       }, threadId);
-      if (!clientId || typeof clientId !== 'string' || clientId.trim() === '') {
-        return '⛔ ERROR: clientId es requerido para appointment_manager.';
+      // Si el clientId es "default" o está vacío, intentamos recuperarlo del contexto de la sesión
+      let effectiveClientId = clientId;
+      if (!effectiveClientId || effectiveClientId === "default" || effectiveClientId.trim() === '') {
+        if (threadId) {
+          const ctx = getSessionData(threadId);
+          // Usamos cast a 'any' para evitar el error de TypeScript ya que sabemos que el contexto 
+          // contiene el clientId cargado en el nodo config
+          const contextClientId = (ctx as any).clientId;
+          if (contextClientId) {
+            effectiveClientId = contextClientId;
+            console.log(`🔄 [APPOINTMENT] clientId era default/vacío. Recuperado del contexto: ${effectiveClientId}`);
+          }
+        }
       }
+
+      if (!effectiveClientId || typeof effectiveClientId !== 'string' || effectiveClientId.trim() === '') {
+        return '⛔ ERROR: clientId es requerido para appointment_manager y no se pudo recuperar del contexto.';
+      }
+      
+      const clientIdForDb = effectiveClientId;
       const db = admin.firestore();
       // Intentar recuperar contexto si hay threadId
       let finalUserInfo = userInfo || {};
@@ -117,18 +134,28 @@ export const appointmentManagerTool = new DynamicStructuredTool({
           status: "pending", createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
         try {
-            const adminDoc = await db.collection("admins").doc(clientId).get();
-            const adminEmail = adminDoc.data()?.email;
-            if (adminEmail) {
-                await sendMeetingRequestToAdmin(adminEmail, { 
-                    customerName: finalUserInfo.name!,
-                    customerEmail: finalUserInfo.email!,
-                    customerPhone: finalUserInfo.phone,
-                    date: cleanDate, 
-                    time, 
-                    topic: finalTopic, 
-                    meetingId: meetingRef.id 
-                });
+            console.log(`🔍 [APPOINTMENT] Buscando email del admin para clientId: ${clientIdForDb}`);
+            const adminDoc = await db.collection("admins").doc(clientIdForDb).get();
+            
+            if (!adminDoc.exists) {
+                console.error(`❌ [APPOINTMENT] No se encontró documento de admin para clientId: ${clientId}`);
+            } else {
+                const adminEmail = adminDoc.data()?.email;
+                console.log(`📧 [APPOINTMENT] Email del admin encontrado: ${adminEmail}`);
+                
+                if (adminEmail) {
+                    await sendMeetingRequestToAdmin(adminEmail, { 
+                        customerName: finalUserInfo.name!,
+                        customerEmail: finalUserInfo.email!,
+                        customerPhone: finalUserInfo.phone,
+                        date: cleanDate, 
+                        time, 
+                        topic: finalTopic, 
+                        meetingId: meetingRef.id 
+                    });
+                } else {
+                    console.error(`❌ [APPOINTMENT] El documento del admin existe pero no tiene un campo 'email'.`);
+                }
             }
         } catch(e) {
             console.error("❌ Error enviando email de solicitud al Admin:", e);

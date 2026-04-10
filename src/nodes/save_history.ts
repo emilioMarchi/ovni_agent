@@ -48,7 +48,7 @@ export async function saveHistoryNode(state: AgentStateType) {
     const serializableMessages = messages
       .filter(msg => {
         const role = msg instanceof HumanMessage ? 'user' : msg instanceof AIMessage ? 'assistant' : msg instanceof ToolMessage ? 'tool' : 'unknown';
-        if (role === 'tool') return false;
+        // Ya NO filtramos los mensajes de herramienta ('tool'), porque son vitales para la estructura de Gemini
         if (role === 'user' && isSystemMessage(msg.content as string)) return false;
         return true;
       })
@@ -56,6 +56,7 @@ export async function saveHistoryNode(state: AgentStateType) {
         let role = "unknown";
         if (msg instanceof HumanMessage) role = "user";
         else if (msg instanceof AIMessage) role = "assistant";
+        else if (msg instanceof ToolMessage) role = "tool";
 
         return {
           role,

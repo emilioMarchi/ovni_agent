@@ -2,6 +2,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 
 interface ConversationContext {
+  clientId?: string;
   userInfo: {
     name?: string;
     email?: string;

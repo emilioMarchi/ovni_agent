@@ -3,6 +3,7 @@ import { AgentStateType } from "../state/state.js";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { resolveAllowedDocIds } from "../utils/folderScopeResolver.js";
 import { setActiveThread, pushDebugEvent } from "../utils/debugCollector.js";
+import { getSessionData } from "../tools/context_manager.js";
 
 const AGENT_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 const agentConfigCache = new Map<string, { value: Record<string, unknown>; expiresAt: number }>();
@@ -92,6 +93,13 @@ export async function configNode(state: AgentStateType, _: any, config?: Runnabl
     });
 
     console.log(`🔧 [CONFIG] Scope resuelto: ${resolvedDocIds.length} docs (${agentData.knowledgeDocs?.length || 0} sueltos + ${agentData.knowledgeFolderIds?.length || 0} carpetas)`);
+
+    // Sincronizar el clientId en el contexto de la sesión para que las herramientas puedan recuperarlo
+    if (threadId) {
+      const sessionCtx = getSessionData(threadId);
+      sessionCtx.clientId = resolvedClientId;
+      console.log(`💾 [CONFIG] clientId ${resolvedClientId} guardado en la sesión ${threadId}`);
+    }
 
     // Activate debug thread if needed
     if (state.debugMode) {

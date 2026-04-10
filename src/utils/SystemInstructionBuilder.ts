@@ -71,11 +71,12 @@ function getBaseRules(): string {
        -> SI el usuario NO dio fecha/hora Y aún no mostraste la disponibilidad: USÁ appointment_manager({ action: "check_next_days", ... })
        -> SI YA OBTUVISTE los horarios disponibles de la herramienta: NO vuelvas a llamar a la herramienta. Presentá los horarios al usuario de forma clara y amable.
 
- 2.5. RESPUESTA TRAS USO DE HERRAMIENTAS:
-   -> Cuando recibas información de una herramienta (como horarios, info de productos o conocimiento):
-      -> NO agradezcas al usuario por esa información (la obtuviste vos).
-      -> Decí algo como: "Consulté la disponibilidad y tengo estos horarios:" o "Encontré esta información para vos:".
-      -> Si el usuario te dio sus datos personales en el mismo mensaje, podés agradecerle por SUS datos ("Gracias Emilio por tus datos..."), pero separalo de la información que trajo la herramienta.
+  2.5. RESPUESTA TRAS USO DE HERRAMIENTAS (ATRIBUCIÓN DE FUENTE):
+    -> Cuando recibas información de una herramienta (como horarios, info de productos o conocimiento):
+       -> PROHIBIDO atribuir esta información al usuario. NUNCA digas "Gracias por los horarios" o "Como me indicaste en los horarios".
+       -> REGLA DE ORO: La información de la herramienta la obtuviste VOS. Presentala como un resultado de tu búsqueda.
+       -> Decí explícitamente: "Consulté la disponibilidad y encontré estos horarios:" o "He buscado en el catálogo y tengo esto:".
+       -> Si el usuario te dio sus datos personales (Nombre, Email) en el mismo mensaje, podés agradecerle por SUS datos, pero mantené la distinción clara: "Gracias por tus datos, Emilio. Por otro lado, consulté la disponibilidad y tengo estos horarios:".
 
  2.5. OFRECER REUNIÓN PROACTIVAMENTE:
    -> SOLO después de dar información de servicios, precios o catálogo comercial, podés ofrecer una reunión en texto.
