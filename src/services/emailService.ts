@@ -77,7 +77,10 @@ function getDarkEmailTemplate(content: string, title?: string) {
 }
 
 function formatDate(date: string, time: string) {
-  return new Date(`${date}T${time}`).toLocaleString("es-AR", {
+  // Para evitar el desplazamiento horario de UTC a Local, 
+  // forzamos la zona horaria en el string ISO antes de crear el objeto Date
+  const isoString = `${date}T${time}:00-03:00`; 
+  return new Date(isoString).toLocaleString("es-AR", {
     weekday: "long",
     year: "numeric",
     month: "long",
