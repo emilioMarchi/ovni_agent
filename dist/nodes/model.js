@@ -46,6 +46,12 @@ export async function modelNode(state) {
         maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
         temperature: 0.4,
         apiKey: process.env.GEMINI_API_KEY,
+        safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+        ],
     });
     const modelWithTools = baseModel.bindTools(allowedTools);
     const systemPrompt = SystemInstructionBuilder.build(state);
@@ -56,8 +62,8 @@ export async function modelNode(state) {
             "\n--------------------------------------\n"
         : "";
     const allMessages = [
-        new SystemMessage(systemPrompt + formattedHistory),
-        ...messages
+        new SystemMessage(systemPrompt + (formattedHistory ? "\n" + formattedHistory : "")),
+        ...(messages || []).filter(msg => msg !== undefined && msg !== null && msg.content !== "")
     ];
     let response;
     try {
@@ -65,6 +71,9 @@ export async function modelNode(state) {
     }
     catch (err) {
         console.error("[MODEL] Error invoking model:", err);
+        // Log the message count and types to help debug "poisonous" histories
+        console.error("[MODEL] Debug - All Messages count:", allMessages.length);
+        console.error("[MODEL] Debug - Message types:", allMessages.map(m => m.constructor.name));
         return {
             messages: [new AIMessage("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo más tarde.")],
         };
