@@ -1,6 +1,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 interface ConversationContext {
+    clientId?: string;
     userInfo: {
         name?: string;
         email?: string;
@@ -21,12 +22,12 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
         email: z.ZodOptional<z.ZodString>;
         phone: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        name?: string | undefined;
         email?: string | undefined;
+        name?: string | undefined;
         phone?: string | undefined;
     }, {
-        name?: string | undefined;
         email?: string | undefined;
+        name?: string | undefined;
         phone?: string | undefined;
     }>>;
     businessData: z.ZodOptional<z.ZodObject<{
@@ -45,10 +46,10 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
     field: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     threadId: string;
-    action: "get" | "save_user" | "save_business" | "get_summary";
+    action: "save_user" | "save_business" | "get" | "get_summary";
     userData?: {
-        name?: string | undefined;
         email?: string | undefined;
+        name?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -59,10 +60,10 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
     field?: string | undefined;
 }, {
     threadId: string;
-    action: "get" | "save_user" | "save_business" | "get_summary";
+    action: "save_user" | "save_business" | "get" | "get_summary";
     userData?: {
-        name?: string | undefined;
         email?: string | undefined;
+        name?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -73,10 +74,10 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
     field?: string | undefined;
 }>, {
     threadId: string;
-    action: "get" | "save_user" | "save_business" | "get_summary";
+    action: "save_user" | "save_business" | "get" | "get_summary";
     userData?: {
-        name?: string | undefined;
         email?: string | undefined;
+        name?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {
@@ -87,10 +88,10 @@ export declare const contextManagerTool: DynamicStructuredTool<z.ZodObject<{
     field?: string | undefined;
 }, {
     threadId: string;
-    action: "get" | "save_user" | "save_business" | "get_summary";
+    action: "save_user" | "save_business" | "get" | "get_summary";
     userData?: {
-        name?: string | undefined;
         email?: string | undefined;
+        name?: string | undefined;
         phone?: string | undefined;
     } | undefined;
     businessData?: {

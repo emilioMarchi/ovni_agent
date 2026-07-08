@@ -1,4 +1,5 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatOpenAI } from "@langchain/openai";
 import { AIMessage, SystemMessage, ToolMessage, HumanMessage } from "@langchain/core/messages";
 import { AgentStateType } from "../state/state.js";
 import { tools } from "../tools/index.js";
@@ -43,20 +44,53 @@ export async function modelNode(state: AgentStateType) {
     return false;
   });
 
-  const baseModel = new ChatGoogleGenerativeAI({
-    modelName: "gemini-2.5-flash", 
-    maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
-    temperature: 0.4,
-    apiKey: process.env.GEMINI_API_KEY,
-    safetySettings: [
-      { category: "HARM_CATEGORY_HARASSMENT" as any, threshold: "BLOCK_NONE" as any },
-      { category: "HARM_CATEGORY_HATE_SPEECH" as any, threshold: "BLOCK_NONE" as any },
-      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT" as any, threshold: "BLOCK_NONE" as any },
-      { category: "HARM_CATEGORY_DANGEROUS_CONTENT" as any, threshold: "BLOCK_NONE" as any },
-    ],
-  });
+  let modelWithTools: any;
 
-  const modelWithTools = baseModel.bindTools(allowedTools);
+  if (process.env.LLM_PROVIDER === "openrouter") {
+    const openRouterModel = process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
+    const fallbackModelNames = process.env.OPENROUTER_FALLBACK_MODELS ? process.env.OPENROUTER_FALLBACK_MODELS.split(",") : [];
+    
+    const createOpenRouterModel = (model: string) => {
+      return new ChatOpenAI({
+        modelName: model,
+        openAIApiKey: process.env.OPENROUTER_API_KEY,
+        temperature: 0.4,
+        maxTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
+        configuration: {
+          baseURL: "https://openrouter.ai/api/v1",
+          baseOptions: {
+            headers: {
+              "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "",
+              "X-Title": process.env.OPENROUTER_SITE_NAME || "OvniAgent",
+            },
+          },
+        },
+      });
+    };
+
+    const primaryModel = createOpenRouterModel(openRouterModel).bindTools(allowedTools);
+    
+    if (fallbackModelNames.length > 0) {
+      const fallbacks = fallbackModelNames.map(name => createOpenRouterModel(name).bindTools(allowedTools));
+      modelWithTools = primaryModel.withFallbacks({ fallbacks });
+    } else {
+      modelWithTools = primaryModel;
+    }
+  } else {
+    const baseModel = new ChatGoogleGenerativeAI({
+      modelName: "gemini-2.5-flash", 
+      maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
+      temperature: 0.4,
+      apiKey: process.env.GEMINI_API_KEY,
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT" as any, threshold: "BLOCK_NONE" as any },
+        { category: "HARM_CATEGORY_HATE_SPEECH" as any, threshold: "BLOCK_NONE" as any },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT" as any, threshold: "BLOCK_NONE" as any },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT" as any, threshold: "BLOCK_NONE" as any },
+      ],
+    });
+    modelWithTools = baseModel.bindTools(allowedTools);
+  }
 
   const systemPrompt = SystemInstructionBuilder.build(state);
 

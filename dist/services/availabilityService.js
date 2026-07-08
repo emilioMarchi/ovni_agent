@@ -70,7 +70,8 @@ export async function getAvailableSlots(clientId, date) {
         .map((doc) => doc.data())
         .filter((meeting) => {
         const status = String(meeting.status || "").toLowerCase();
-        return status !== "cancelled" && status !== "canceled" && status !== "rejected";
+        // Solo los confirmados ocupan el slot. Los pending NO bloquean.
+        return status === "confirmed";
     })
         .map((meeting) => meeting.time)
         .filter(Boolean);

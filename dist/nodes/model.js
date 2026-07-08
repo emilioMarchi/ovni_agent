@@ -1,5 +1,6 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { AIMessage, SystemMessage } from "@langchain/core/messages";
+import { ChatOpenAI } from "@langchain/openai";
+import { AIMessage, SystemMessage, ToolMessage, HumanMessage } from "@langchain/core/messages";
 import { tools } from "../tools/index.js";
 import { SystemInstructionBuilder } from "../utils/SystemInstructionBuilder.js";
 import { pushDebugEvent, drainDebugEvents } from "../utils/debugCollector.js";
@@ -41,19 +42,51 @@ export async function modelNode(state) {
             return true;
         return false;
     });
-    const baseModel = new ChatGoogleGenerativeAI({
-        modelName: "gemini-2.5-flash",
-        maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
-        temperature: 0.4,
-        apiKey: process.env.GEMINI_API_KEY,
-        safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-        ],
-    });
-    const modelWithTools = baseModel.bindTools(allowedTools);
+    let modelWithTools;
+    if (process.env.LLM_PROVIDER === "openrouter") {
+        const openRouterModel = process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
+        const fallbackModelNames = process.env.OPENROUTER_FALLBACK_MODELS ? process.env.OPENROUTER_FALLBACK_MODELS.split(",") : [];
+        const createOpenRouterModel = (model) => {
+            return new ChatOpenAI({
+                modelName: model,
+                openAIApiKey: process.env.OPENROUTER_API_KEY,
+                temperature: 0.4,
+                maxTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
+                configuration: {
+                    baseURL: "https://openrouter.ai/api/v1",
+                    baseOptions: {
+                        headers: {
+                            "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "",
+                            "X-Title": process.env.OPENROUTER_SITE_NAME || "OvniAgent",
+                        },
+                    },
+                },
+            });
+        };
+        const primaryModel = createOpenRouterModel(openRouterModel).bindTools(allowedTools);
+        if (fallbackModelNames.length > 0) {
+            const fallbacks = fallbackModelNames.map(name => createOpenRouterModel(name).bindTools(allowedTools));
+            modelWithTools = primaryModel.withFallbacks({ fallbacks });
+        }
+        else {
+            modelWithTools = primaryModel;
+        }
+    }
+    else {
+        const baseModel = new ChatGoogleGenerativeAI({
+            modelName: "gemini-2.5-flash",
+            maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
+            temperature: 0.4,
+            apiKey: process.env.GEMINI_API_KEY,
+            safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+            ],
+        });
+        modelWithTools = baseModel.bindTools(allowedTools);
+    }
     const systemPrompt = SystemInstructionBuilder.build(state);
     // Formatear historial pasado para inyectarlo como contexto extra si existe
     const formattedHistory = contextHistory.length > 0
@@ -61,22 +94,76 @@ export async function modelNode(state) {
             contextHistory.map(m => `${m.role === "user" ? "Usuario" : "Agente"} (${m.timestamp}): ${m.content}`).join("\n") +
             "\n--------------------------------------\n"
         : "";
+    // 1. Filtrado inicial y limpieza de mensajes vacíos
+    const filteredMessages = (messages || []).filter(msg => {
+        if (!msg)
+            return false;
+        return (msg.content && msg.content !== "") || (msg.tool_calls && msg.tool_calls.length > 0);
+    });
+    // 2. Saneamiento de secuencia para Gemini (Evitar crashes de la librería)
+    const sanitizedMessages = [];
+    for (let i = 0; i < filteredMessages.length; i++) {
+        const msg = filteredMessages[i];
+        const prevMsg = sanitizedMessages[sanitizedMessages.length - 1];
+        // A. Evitar mensajes consecutivos del mismo rol (Colapsar)
+        if (prevMsg) {
+            const currentRole = msg instanceof HumanMessage ? 'human' : msg instanceof AIMessage ? 'ai' : msg instanceof ToolMessage ? 'tool' : 'unknown';
+            const prevRole = prevMsg instanceof HumanMessage ? 'human' : prevMsg instanceof AIMessage ? 'ai' : prevMsg instanceof ToolMessage ? 'tool' : 'unknown';
+            if (currentRole === prevRole && currentRole !== 'tool') {
+                // Si es el mismo rol, concatenamos el contenido al mensaje anterior en lugar de añadir uno nuevo
+                if (prevMsg.content && typeof prevMsg.content === 'string') {
+                    prevMsg.content += `\n${msg.content || ""}`;
+                    continue;
+                }
+            }
+        }
+        // B. Validar ToolMessages: Debe haber un AIMessage con tool_calls justo antes
+        if (msg instanceof ToolMessage) {
+            if (!prevMsg || !(prevMsg instanceof AIMessage) || !prevMsg.tool_calls || prevMsg.tool_calls.length === 0) {
+                console.warn(`[MODEL] Eliminando ToolMessage huérfano (sin llamada previa). Evitando crash de librería.`);
+                continue; // Saltamos este mensaje porque rompería la secuencia de Gemini
+            }
+        }
+        sanitizedMessages.push(msg);
+    }
     const allMessages = [
         new SystemMessage(systemPrompt + (formattedHistory ? "\n" + formattedHistory : "")),
-        ...(messages || []).filter(msg => msg !== undefined && msg !== null && msg.content !== "")
+        ...sanitizedMessages
     ];
     let response;
-    try {
-        response = await modelWithTools.invoke(allMessages);
-    }
-    catch (err) {
-        console.error("[MODEL] Error invoking model:", err);
-        // Log the message count and types to help debug "poisonous" histories
-        console.error("[MODEL] Debug - All Messages count:", allMessages.length);
-        console.error("[MODEL] Debug - Message types:", allMessages.map(m => m.constructor.name));
-        return {
-            messages: [new AIMessage("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo más tarde.")],
-        };
+    let attempts = 0;
+    const maxAttempts = 3; // Aumentamos a 3 para incluir el intento de limpieza
+    let currentMessages = [...allMessages];
+    while (attempts < maxAttempts) {
+        try {
+            response = await modelWithTools.invoke(currentMessages);
+            break; // Éxito, salimos del bucle
+        }
+        catch (err) {
+            attempts++;
+            const isLibraryError = err instanceof TypeError && err.message.includes("reading 'length'");
+            if (isLibraryError) {
+                if (attempts === 2) {
+                    console.warn(`[MODEL] El error persiste tras el primer reintento. Aplicando LIMPIEZA DE EMERGENCIA al historial...`);
+                    // Mantenemos solo el SystemMessage (índice 0) y el último mensaje del usuario
+                    const systemMsg = currentMessages[0];
+                    const lastUserMsg = currentMessages[currentMessages.length - 1];
+                    currentMessages = [systemMsg, lastUserMsg];
+                    console.log(`[MODEL] Historial simplificado a ${currentMessages.length} mensajes para evitar crash de librería.`);
+                    continue;
+                }
+                if (attempts < maxAttempts) {
+                    console.warn(`[MODEL] Error de librería detectado. Reintentando (${attempts}/${maxAttempts})...`);
+                    continue;
+                }
+            }
+            console.error(`[MODEL] Error invoking model (Attempt ${attempts}):`, err);
+            console.error("[MODEL] Debug - All Messages count:", currentMessages.length);
+            console.error("[MODEL] Debug - Message types:", currentMessages.map(m => m.constructor.name));
+            return {
+                messages: [new AIMessage("Lo siento, hubo un error al procesar tu mensaje. Intenta de nuevo más tarde.")],
+            };
+        }
     }
     if (response && Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
         console.log(`🤖 Eva decidió usar: ${response.tool_calls.map((tc) => tc.name).join(", ")}`);
@@ -94,7 +181,7 @@ export async function modelNode(state) {
                 allowedTools: allowedTools.map(t => t.name),
                 toolCalls: response?.tool_calls?.map((tc) => ({ name: tc.name, args: tc.args })) || [],
                 respondedDirectly: !response?.tool_calls?.length,
-                responsePreview: !response?.tool_calls?.length ? response.content?.substring(0, 300) : undefined,
+                responsePreview: !response?.tool_calls?.length ? response?.content?.substring(0, 300) : undefined,
             },
         });
     }

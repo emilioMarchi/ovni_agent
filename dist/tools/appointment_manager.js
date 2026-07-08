@@ -33,8 +33,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
   4. La acción "schedule" ES LA ÚNICA forma de registrar la cita/evento. Si no ejecutas "schedule", la cita no existe.`,
     schema: z.object({
         action: z.enum(["check_availability", "check_next_days", "schedule"]).default("check_next_days"),
-        clientId: z.string(),
-        threadId: z.string().optional().describe("ID de la sesión actual (necesario para recuperar datos guardados del usuario)."),
+        threadId: z.string().describe("ID de la sesión actual (OBLIGATORIO para identificar al administrador y al usuario)."),
         date: z.string().optional().describe("Fecha en formato YYYY-MM-DD"),
         time: z.string().optional().describe("Hora en formato HH:MM (24h)"),
         userInfo: z.object({
@@ -53,7 +52,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
             if (!args || typeof args !== 'object') {
                 return '⛔ ERROR: Argumentos inválidos para appointment_manager.';
             }
-            const { action = "check_next_days", clientId, threadId, date, time, userInfo, topic, confirmedByUser } = args;
+            const { action = "check_next_days", threadId, date, time, userInfo, topic, confirmedByUser } = args;
             // Log de acción interna
             pushDebugEvent && pushDebugEvent({
                 node: "appointment_manager",
@@ -61,9 +60,16 @@ export const appointmentManagerTool = new DynamicStructuredTool({
                 type: "internal_action",
                 data: { action, args }
             }, threadId);
-            if (!clientId || typeof clientId !== 'string' || clientId.trim() === '') {
-                return '⛔ ERROR: clientId es requerido para appointment_manager.';
+            if (!threadId) {
+                return '⛔ ERROR: threadId es obligatorio para identificar al administrador y al usuario.';
             }
+            const ctx = getSessionData(threadId);
+            const clientIdForDb = ctx.clientId;
+            if (!clientIdForDb || typeof clientIdForDb !== 'string' || clientIdForDb.trim() === '') {
+                console.error(`❌ [APPOINTMENT] No se encontró clientId en la sesión para threadId: ${threadId}`);
+                return '⛔ ERROR INTERNO: No se pudo recuperar el ID del administrador desde la sesión.';
+            }
+            console.log(`✅ [APPOINTMENT] Usando clientId recuperado de sesión: ${clientIdForDb}`);
             const db = admin.firestore();
             // Intentar recuperar contexto si hay threadId
             let finalUserInfo = userInfo || {};
@@ -104,11 +110,11 @@ export const appointmentManagerTool = new DynamicStructuredTool({
                         "Si el usuario confirma que todo está correcto, vuelve a ejecutar appointment_manager con action=\"schedule\" y confirmedByUser=true.",
                     ].join("\n");
                 }
-                const { availableSlots } = await getAvailableSlots(clientId, cleanDate);
+                const { availableSlots } = await getAvailableSlots(clientIdForDb, cleanDate);
                 if (!availableSlots.includes(time))
                     return `⛔ El horario ${time} ya no está disponible para el ${formatFriendlyDate(cleanDate)}. Por favor elige otro.`;
                 const meetingRef = await db.collection("meetings").add({
-                    clientId, date: cleanDate, time,
+                    clientId: clientIdForDb, date: cleanDate, time,
                     customerName: finalUserInfo.name,
                     customerEmail: finalUserInfo.email,
                     customerPhone: finalUserInfo.phone || "No proporcionado",
@@ -116,18 +122,28 @@ export const appointmentManagerTool = new DynamicStructuredTool({
                     status: "pending", createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
                 try {
-                    const adminDoc = await db.collection("admins").doc(clientId).get();
-                    const adminEmail = adminDoc.data()?.email;
-                    if (adminEmail) {
-                        await sendMeetingRequestToAdmin(adminEmail, {
-                            customerName: finalUserInfo.name,
-                            customerEmail: finalUserInfo.email,
-                            customerPhone: finalUserInfo.phone,
-                            date: cleanDate,
-                            time,
-                            topic: finalTopic,
-                            meetingId: meetingRef.id
-                        });
+                    console.log(`🔍 [APPOINTMENT] Buscando email del admin para clientId: ${clientIdForDb}`);
+                    const adminDoc = await db.collection("admins").doc(clientIdForDb).get();
+                    if (!adminDoc.exists) {
+                        console.error(`❌ [APPOINTMENT] No se encontró documento de admin para clientId: ${clientIdForDb}`);
+                    }
+                    else {
+                        const adminEmail = adminDoc.data()?.email;
+                        console.log(`📧 [APPOINTMENT] Email del admin encontrado: ${adminEmail}`);
+                        if (adminEmail) {
+                            await sendMeetingRequestToAdmin(adminEmail, {
+                                customerName: finalUserInfo.name,
+                                customerEmail: finalUserInfo.email,
+                                customerPhone: finalUserInfo.phone,
+                                date: cleanDate,
+                                time,
+                                topic: finalTopic,
+                                meetingId: meetingRef.id
+                            });
+                        }
+                        else {
+                            console.error(`❌ [APPOINTMENT] El documento del admin existe pero no tiene un campo 'email'.`);
+                        }
                     }
                 }
                 catch (e) {
@@ -155,7 +171,7 @@ export const appointmentManagerTool = new DynamicStructuredTool({
                     const dateObj = toDate(`${todayStr}T12:00:00`, { timeZone: TIMEZONE });
                     dateObj.setDate(dateObj.getDate() + i);
                     const isoDate = formatInTimeZone(dateObj, TIMEZONE, 'yyyy-MM-dd');
-                    const { availableSlots, businessHours } = await getAvailableSlots(clientId, isoDate);
+                    const { availableSlots, businessHours } = await getAvailableSlots(clientIdForDb, isoDate);
                     if (businessHours.enabled && availableSlots.length > 0) {
                         const formattedDate = formatFriendlyDate(isoDate);
                         // Agrupar horarios por bloques de 4 para mejor visualización
