@@ -100,7 +100,7 @@ export async function modelNode(state) {
             return false;
         return (msg.content && msg.content !== "") || (msg.tool_calls && msg.tool_calls.length > 0);
     });
-    // 2. Saneamiento de secuencia para Gemini (Evitar crashes de la librería)
+    // 2. Saneamiento de secuencia para Gemini y OpenAI (Evitar crashes de la librería y errores de IDs faltantes)
     const sanitizedMessages = [];
     for (let i = 0; i < filteredMessages.length; i++) {
         const msg = filteredMessages[i];
@@ -117,11 +117,43 @@ export async function modelNode(state) {
                 }
             }
         }
-        // B. Validar ToolMessages: Debe haber un AIMessage con tool_calls justo antes
+        // B. Asegurar IDs en tool_calls de AIMessage
+        if (msg instanceof AIMessage && msg.tool_calls && msg.tool_calls.length > 0) {
+            msg.tool_calls = msg.tool_calls.map((tc) => {
+                if (!tc.id) {
+                    // Buscar si hay un ToolMessage correspondiente adelante para reutilizar su ID
+                    let toolCallId = undefined;
+                    for (let j = i + 1; j < filteredMessages.length; j++) {
+                        const nextMsg = filteredMessages[j];
+                        if (nextMsg instanceof ToolMessage && nextMsg.name === tc.name) {
+                            toolCallId = nextMsg.tool_call_id;
+                            break;
+                        }
+                        if (nextMsg instanceof AIMessage || nextMsg instanceof HumanMessage) {
+                            break;
+                        }
+                    }
+                    tc.id = toolCallId || `call_${Math.random().toString(36).substring(2, 15)}`;
+                }
+                return tc;
+            });
+        }
+        // C. Validar ToolMessages: Debe haber un AIMessage con tool_calls justo antes, y sincronizar IDs
         if (msg instanceof ToolMessage) {
             if (!prevMsg || !(prevMsg instanceof AIMessage) || !prevMsg.tool_calls || prevMsg.tool_calls.length === 0) {
                 console.warn(`[MODEL] Eliminando ToolMessage huérfano (sin llamada previa). Evitando crash de librería.`);
                 continue; // Saltamos este mensaje porque rompería la secuencia de Gemini
+            }
+            // Asegurar que el ToolMessage tenga el tool_call_id correcto sincronizado con el AIMessage anterior
+            if (!msg.tool_call_id) {
+                const matchingCall = prevMsg.tool_calls.find((tc) => tc.name === msg.name);
+                if (matchingCall) {
+                    msg.tool_call_id = matchingCall.id || `call_${Math.random().toString(36).substring(2, 15)}`;
+                }
+                else {
+                    // Si no encontramos correspondencia directa por nombre, usamos el ID de la primera tool call disponible
+                    msg.tool_call_id = prevMsg.tool_calls[0].id || `call_${Math.random().toString(36).substring(2, 15)}`;
+                }
             }
         }
         sanitizedMessages.push(msg);
