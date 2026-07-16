@@ -5,3 +5,4 @@ agent-firebase-service.json
 .DS_Store
 
 *.webm
+scripts/venv/

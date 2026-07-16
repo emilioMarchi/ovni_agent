@@ -14,6 +14,7 @@ import chatRouter from "./routes/chat.js";
 import meetingsRouter from "./routes/meetings.js";
 import tokensRouter from "./routes/tokens.js";
 import foldersRouter from "./routes/folders.js";
+import degrabadorRouter from "./routes/degrabador.js";
 import { validateClientFormat } from "./middleware/auth.js";
 import { normalizeAllowedDomains } from "./middleware/widgetSecurity.js";
 
@@ -117,6 +118,7 @@ app.use("/api/folders", foldersRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/meetings", meetingsRouter);
 app.use("/api/tokens", tokensRouter);
+app.use("/api/degrabador", degrabadorRouter);
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error("Error no manejado:", err);
@@ -151,7 +153,8 @@ app.listen(PORT, () => {
 ║  ├── POST   /api/chat/stream            - Stream agente   ║
 ║  ├── GET    /api/chat/sessions         - Listar sesiones ║
 ║  ├── GET    /api/chat/sessions/:id     - Ver sesión      ║
-║  └── GET    /api/chat/history/:id      - Ver historial   ║
+║  ├── GET    /api/chat/history/:id      - Ver historial   ║
+║  └── POST   /api/degrabador            - Transcribir A/V ║
 ║                                                           ║
 ║  Panel Admin: http://localhost:${PORT}/master-admin.html       ║
 ║  Contraseña: admin123                                     ║
