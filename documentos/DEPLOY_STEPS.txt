@@ -55,6 +55,14 @@ npm -v
 # Instala pm2 global
 npm install -g pm2
 
+# Instala Python 3, venv, pip y ffmpeg (para degrabador)
+sudo apt install python3 python3-venv python3-pip ffmpeg -y
+
+# Crea venv para AssemblyAI (degrabador)
+cd /root/ovni_agent/scripts
+python3 -m venv venv2
+venv2/bin/pip install -r requirements-assemblyai.txt
+
 =====================================
 
 =====================================
@@ -93,6 +101,10 @@ Desactiva el proxy (nube gris) en Cloudflare para emitir el SSL.
   NODE_ENV=production
   GEMINI_API_KEY=tu_key
   PINECONE_API_KEY=tu_key
+  ASSEMBLYAI_API_KEY=tu_key          # Requerido para degrabador
+  OPENROUTER_API_KEY=tu_key          # Requerido para degrabador (LLM formatting)
+  OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+  PYTHON_BIN=/root/ovni_agent/scripts/venv2/bin/python
   # ... otras variables necesarias
 
 3. Sube agent-firebase-service.json al mismo directorio (/root/ovni_agent).

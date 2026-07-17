@@ -16,9 +16,7 @@ ffmpeg.setFfprobePath(ffprobeInstaller.path);
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 function getOpenRouterKey() { return process.env.OPENROUTER_API_KEY || ""; }
 const ASSEMBLYAI_SCRIPT = path.join(process.cwd(), "scripts", "assemblyai_transcribe.py");
-const WHISPER_SCRIPT = path.join(process.cwd(), "scripts", "whisper_transcribe.py");
-const PYTHON_BIN = process.env.PYTHON_BIN || path.join(process.cwd(), "scripts", "venv", "Scripts", "python.exe");
-const PYTHON_BIN_VENV2 = path.join(process.cwd(), "scripts", "venv2", "Scripts", "python.exe");
+const PYTHON_BIN = process.env.PYTHON_BIN || path.join(process.cwd(), "scripts", "venv2", process.platform === "win32" ? "Scripts" : "bin", process.platform === "win32" ? "python.exe" : "python");
 
 const MAX_FILE_SIZE_MB = 25;
 const MAX_DURATION_MIN = 20;
@@ -70,7 +68,7 @@ async function transcribeWithAssemblyAI(audioPath: string): Promise<{ utterances
   let stderr = "";
 
   try {
-    const result = await execFileAsync(PYTHON_BIN_VENV2, [
+    const result = await execFileAsync(PYTHON_BIN, [
       ASSEMBLYAI_SCRIPT,
       audioPath,
       "--language", "es",
@@ -125,70 +123,6 @@ async function transcribeWithAssemblyAI(audioPath: string): Promise<{ utterances
     fullText: result.full_text,
     language: result.language,
   };
-}
-
-async function transcribeWithFasterWhisper(audioPath: string): Promise<string> {
-  let stdout = "";
-  let stderr = "";
-
-  try {
-    const result = await execFileAsync(PYTHON_BIN, [
-      WHISPER_SCRIPT,
-      audioPath,
-      "--model", "small",
-      "--language", "es",
-    ], {
-      timeout: 600000,
-      maxBuffer: 50 * 1024 * 1024,
-    });
-    stdout = result.stdout.trim();
-    stderr = result.stderr;
-  } catch (err: any) {
-    console.error(`[Degrabador] Whisper exec error:`, {
-      code: err.code,
-      killed: err.killed,
-      stderr: err.stderr?.slice(0, 1000),
-      stdout: err.stdout?.slice(0, 1000),
-    });
-    throw new Error(`Faster Whisper falló: ${err.stderr?.slice(0, 300) || err.message}`);
-  }
-
-  if (stderr) {
-    console.warn(`[Degrabador] Whisper stderr:`, stderr.slice(0, 500));
-  }
-
-  const resultFile = stdout;
-  if (!resultFile || !fs.existsSync(resultFile)) {
-    throw new Error("Faster Whisper no generó archivo de resultado");
-  }
-
-  let result: any;
-  try {
-    const raw = fs.readFileSync(resultFile, "utf-8");
-    result = JSON.parse(raw);
-  } catch {
-    throw new Error("Error leyendo resultado de Faster Whisper");
-  } finally {
-    try { fs.unlinkSync(resultFile); } catch {}
-  }
-
-  if (result.error) {
-    throw new Error(`Faster Whisper: ${result.error}`);
-  }
-
-  if (!result.segments || result.segments.length === 0) {
-    return "";
-  }
-
-  console.log(`[Degrabador] Whisper detectó idioma: ${result.language} (${result.language_probability})`);
-
-  return result.segments
-    .map((seg: any) => {
-      const start = formatTime(seg.start);
-      const end = formatTime(seg.end);
-      return `[${start} - ${end}] ${seg.text}`;
-    })
-    .join("\n");
 }
 
 function buildDiarizedTranscription(utterances: AssemblyAIUtterance[]): string {
@@ -359,7 +293,6 @@ export async function processDegrabador(
     onProgress?.("transcribing", 30);
     let rawTranscription = "";
     let hasDiarization = false;
-    let usedAssemblyAI = false;
 
     // Try AssemblyAI first (transcription + diarization in one call)
     if (process.env.ASSEMBLYAI_API_KEY) {
@@ -368,17 +301,11 @@ export async function processDegrabador(
         const assemblyResult = await transcribeWithAssemblyAI(audioPath);
         rawTranscription = buildDiarizedTranscription(assemblyResult.utterances);
         hasDiarization = assemblyResult.utterances.length > 0;
-        usedAssemblyAI = true;
         console.log(`[Degrabador] AssemblyAI completado: ${assemblyResult.utterances.length} utterances, ${assemblyResult.utterances.length > 0 ? [...new Set(assemblyResult.utterances.map(u => u.speaker))].length : 0} speakers`);
       } catch (err: any) {
-        console.warn(`[Degrabador] AssemblyAI falló, intentando con Faster Whisper: ${err.message}`);
+        console.error(`[Degrabador] AssemblyAI falló: ${err.message}`);
+        throw err;
       }
-    }
-
-    // Fallback to local Faster Whisper (no diarization)
-    if (!rawTranscription) {
-      console.log("[Degrabador] Transcribiendo con Faster Whisper (sin diarización)...");
-      rawTranscription = await transcribeWithFasterWhisper(audioPath);
     }
 
     if (!rawTranscription.trim()) {
