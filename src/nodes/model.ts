@@ -53,16 +53,15 @@ export async function modelNode(state: AgentStateType) {
     const createOpenRouterModel = (model: string) => {
       return new ChatOpenAI({
         modelName: model,
-        openAIApiKey: process.env.OPENROUTER_API_KEY,
+        apiKey: process.env.OPENROUTER_API_KEY,
         temperature: 0.4,
-        maxTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
+        maxTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 1500),
         configuration: {
           baseURL: "https://openrouter.ai/api/v1",
-          baseOptions: {
-            headers: {
-              "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "",
-              "X-Title": process.env.OPENROUTER_SITE_NAME || "OvniAgent",
-            },
+          defaultHeaders: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "",
+            "X-Title": process.env.OPENROUTER_SITE_NAME || "OvniAgent",
           },
         },
       });
@@ -79,7 +78,7 @@ export async function modelNode(state: AgentStateType) {
   } else {
     const baseModel = new ChatGoogleGenerativeAI({
       modelName: "gemini-2.5-flash", 
-      maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 4096),
+      maxOutputTokens: state.outputAudio ? 800 : (state.functions?.includes("document_analyzer") ? 16384 : 1500),
       temperature: 0.4,
       apiKey: process.env.GEMINI_API_KEY,
       safetySettings: [

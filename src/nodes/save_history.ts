@@ -33,76 +33,81 @@ function cleanFirestoreData(obj: any) {
   return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined && v !== null));
 }
 
-export async function saveHistoryNode(state: AgentStateType) {
-
+/**
+ * Lógica interna de guardado (separada para poder usarla como fire-and-forget).
+ */
+async function doSaveHistory(state: AgentStateType) {
   const { messages, clientId, agentId, userInfo, threadId, endSession } = state;
 
-  if (!messages || messages.length === 0) return {};
+  if (!messages || messages.length === 0) return;
 
-  try {
-    const db = admin.firestore();
-    const userId = userInfo?.phone || userInfo?.email || "anonymous";
-    const userName = userInfo?.name || null;
-    const docId = `conv_${agentId}_${userId}_${threadId}`;
+  const db = admin.firestore();
+  const userId = userInfo?.phone || userInfo?.email || "anonymous";
+  const userName = userInfo?.name || null;
+  const docId = `conv_${agentId}_${userId}_${threadId}`;
 
-    const serializableMessages = messages
-      .filter(msg => {
-        const role = msg instanceof HumanMessage ? 'user' : msg instanceof AIMessage ? 'assistant' : msg instanceof ToolMessage ? 'tool' : 'unknown';
-        // Ya NO filtramos los mensajes de herramienta ('tool'), porque son vitales para la estructura de Gemini
-        if (role === 'user' && isSystemMessage(msg.content as string)) return false;
-        return true;
-      })
-      .map(msg => {
-        let role = "unknown";
-        if (msg instanceof HumanMessage) role = "user";
-        else if (msg instanceof AIMessage) role = "assistant";
-        else if (msg instanceof ToolMessage) role = "tool";
+  const serializableMessages = messages
+    .filter(msg => {
+      const role = msg instanceof HumanMessage ? 'user' : msg instanceof AIMessage ? 'assistant' : msg instanceof ToolMessage ? 'tool' : 'unknown';
+      if (role === 'user' && isSystemMessage(msg.content as string)) return false;
+      return true;
+    })
+    .map(msg => {
+      let role = "unknown";
+      if (msg instanceof HumanMessage) role = "user";
+      else if (msg instanceof AIMessage) role = "assistant";
+      else if (msg instanceof ToolMessage) role = "tool";
 
-        return {
-          role,
-          content: cleanMessageContent(msg.content as string, role),
-          timestamp: new Date().toISOString(),
-        };
-      });
+      return {
+        role,
+        content: cleanMessageContent(msg.content as string, role),
+        timestamp: new Date().toISOString(),
+      };
+    });
 
-    let summary: string | undefined;
-    let classification: any = undefined;
+  let summary: string | undefined;
+  let classification: any = undefined;
 
-    const userAndAssistantMessages = serializableMessages.filter(m => m.role === "user" || m.role === "assistant");
-    const hasRealMessages = userAndAssistantMessages.some(m => m.role === 'user' && m.content && m.content.length > 5 && !isSystemMessage(m.content));
+  const userAndAssistantMessages = serializableMessages.filter(m => m.role === "user" || m.role === "assistant");
+  const hasRealMessages = userAndAssistantMessages.some(m => m.role === 'user' && m.content && m.content.length > 5 && !isSystemMessage(m.content));
 
-    if (endSession && hasRealMessages) {
-      const now = new Date();
-      const sessionDate = formatSessionDate(now);
-      const analysis = await analyzeSession(userAndAssistantMessages, userName);
-      summary = `[${sessionDate}] ${analysis.summary}`;
-      classification = analysis.classification;
-    }
-
-    // Debug log para summary/classification
-    console.log('📝 Guardando historial:', { summary, classification });
-
-    // Sobreescribir el array de mensajes completo (LangGraph ya tiene el estado acumulado)
-    const docRef = db.collection("history").doc(docId);
-    const docData: Record<string, any> = {
-      clientId: clientId || "unknown",
-      agentId: agentId || "unknown",
-      userId,
-      threadId,
-      messages: serializableMessages,
-      lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
-    };
-    if (userName) docData.userName = userName;
-    if (typeof summary === 'string' && summary.trim() !== '') {
-      docData.summary = summary;
-    }
-    if (classification && typeof classification === 'object') {
-      docData.classification = classification;
-    }
-    await docRef.set(docData, { merge: false });
-  } catch (error) {
-    console.error("❌ Error en saveHistoryNode:", error);
+  if (endSession && hasRealMessages) {
+    const now = new Date();
+    const sessionDate = formatSessionDate(now);
+    const analysis = await analyzeSession(userAndAssistantMessages, userName);
+    summary = `[${sessionDate}] ${analysis.summary}`;
+    classification = analysis.classification;
   }
+
+  console.log('📝 Guardando historial:', { summary, classification });
+
+  const docRef = db.collection("history").doc(docId);
+  const docData: Record<string, any> = {
+    clientId: clientId || "unknown",
+    agentId: agentId || "unknown",
+    userId,
+    threadId,
+    messages: serializableMessages,
+    lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  if (userName) docData.userName = userName;
+  if (typeof summary === 'string' && summary.trim() !== '') {
+    docData.summary = summary;
+  }
+  if (classification && typeof classification === 'object') {
+    docData.classification = classification;
+  }
+  await docRef.set(docData, { merge: false });
+}
+
+/**
+ * Nodo de guardado de historial: fire-and-forget para no bloquear la respuesta al usuario.
+ */
+export async function saveHistoryNode(state: AgentStateType) {
+  if (!state.messages || state.messages.length === 0) return {};
+
+  // Fire-and-forget: el usuario recibe su respuesta sin esperar a que Firestore confirme
+  doSaveHistory(state).catch(err => console.error("❌ Error en saveHistoryNode:", err));
 
   return {};
 }

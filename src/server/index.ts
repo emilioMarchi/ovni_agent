@@ -1,8 +1,9 @@
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ override: true });
 
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 
 import "./firebase.js";
 import admin from "./firebase.js";
@@ -14,7 +15,7 @@ import chatRouter from "./routes/chat.js";
 import meetingsRouter from "./routes/meetings.js";
 import tokensRouter from "./routes/tokens.js";
 import foldersRouter from "./routes/folders.js";
-import degrabadorRouter from "./routes/degrabador.js";
+import desgrabadorRouter from "./routes/desgrabador.js";
 import { validateClientFormat } from "./middleware/auth.js";
 import { normalizeAllowedDomains } from "./middleware/widgetSecurity.js";
 
@@ -87,14 +88,14 @@ app.use(cors({
       if (matchOrigin(origin)) {
         callback(null, true);
       } else {
-        callback(null, true); // Still allow but don't set Access-Control-Allow-Origin header for unknown origins
-        // Note: Real blocking happens in widgetAccessGuard middleware, not CORS
+        callback(new Error(`CORS: origen no permitido: ${origin}`));
       }
     });
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-client-id", "x-ovni-widget-token"],
 }));
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static("public"));
 
@@ -118,7 +119,7 @@ app.use("/api/folders", foldersRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/meetings", meetingsRouter);
 app.use("/api/tokens", tokensRouter);
-app.use("/api/degrabador", degrabadorRouter);
+app.use("/api/desgrabador", desgrabadorRouter);
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error("Error no manejado:", err);
@@ -154,10 +155,9 @@ app.listen(PORT, () => {
 ║  ├── GET    /api/chat/sessions         - Listar sesiones ║
 ║  ├── GET    /api/chat/sessions/:id     - Ver sesión      ║
 ║  ├── GET    /api/chat/history/:id      - Ver historial   ║
-║  └── POST   /api/degrabador            - Transcribir A/V ║
+║  └── POST   /api/desgrabador            - Transcribir A/V ║
 ║                                                           ║
 ║  Panel Admin: http://localhost:${PORT}/master-admin.html       ║
-║  Contraseña: admin123                                     ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
 });

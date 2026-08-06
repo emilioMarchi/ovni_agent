@@ -3,12 +3,15 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
-import { processDegrabador } from "../../services/degrabadorService.js";
-import { estimateCost } from "../../services/degrabadorCosts.js";
+import { processDesgrabador } from "../../services/desgrabadorService.js";
+import { estimateCost } from "../../services/desgrabadorCosts.js";
+import { masterAuth } from "../middleware/auth.js";
+import { tokenOrFallback } from "../middleware/tokenAuth.js";
 
 const router = Router();
+router.use(tokenOrFallback(masterAuth));
 
-const RESULTS_DIR = path.join(process.cwd(), "uploads", "degrabador_results");
+const RESULTS_DIR = path.join(process.cwd(), "uploads", "desgrabador_results");
 if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR, { recursive: true });
 
 const ALLOWED_EXTENSIONS = [
@@ -69,7 +72,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
   };
   jobs.set(jobId, job);
 
-  console.log(`[Degrabador] Job ${jobId} creado: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+  console.log(`[Desgrabador] Job ${jobId} creado: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
 
   // Return immediately
   res.status(202).json({ success: true, jobId, status: "processing" });
@@ -78,7 +81,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
   void (async () => {
     const tempPath = file.path;
     try {
-      const result = await processDegrabador(tempPath);
+      const result = await processDesgrabador(tempPath);
 
       job.status = "completed";
       job.markdown = result.markdown;
@@ -89,7 +92,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
       // Save to disk
       const resultFile = path.join(RESULTS_DIR, `${jobId}.json`);
       fs.writeFileSync(resultFile, JSON.stringify(job, null, 2), "utf-8");
-      console.log(`[Degrabador] Job ${jobId} completado. Guardado en ${resultFile}`);
+      console.log(`[Desgrabador] Job ${jobId} completado. Guardado en ${resultFile}`);
     } catch (error: any) {
       job.status = "error";
       job.error = error.message || "Error desconocido";
@@ -97,7 +100,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
 
       const resultFile = path.join(RESULTS_DIR, `${jobId}.json`);
       fs.writeFileSync(resultFile, JSON.stringify(job, null, 2), "utf-8");
-      console.error(`[Degrabador] Job ${jobId} falló:`, error.message);
+      console.error(`[Desgrabador] Job ${jobId} falló:`, error.message);
     } finally {
       try { fs.unlinkSync(tempPath); } catch {}
     }
@@ -106,12 +109,12 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
 
 // Poll → get job status/result
 router.get("/:jobId", (req: Request, res: Response) => {
-  const { jobId } = req.params;
-  const job = jobs.get(jobId);
+  const safeJobId = path.basename(req.params.jobId);
+  const job = jobs.get(safeJobId);
 
   if (!job) {
     // Try loading from disk
-    const resultFile = path.join(RESULTS_DIR, `${jobId}.json`);
+    const resultFile = path.join(RESULTS_DIR, `${safeJobId}.json`);
     if (fs.existsSync(resultFile)) {
       const data = JSON.parse(fs.readFileSync(resultFile, "utf-8"));
       return res.json({ success: true, data });

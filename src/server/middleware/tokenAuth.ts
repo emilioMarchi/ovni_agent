@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import admin from "../firebase.js";
+import { createHash } from "node:crypto";
 
 /**
  * Middleware estricto: requiere Authorization: Bearer <token>.
@@ -10,9 +11,10 @@ export async function tokenAuth(req: Request, res: Response, next: NextFunction)
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Falta Authorization Bearer token" });
   }
-  const token = authHeader.slice(7);
+  const rawToken = authHeader.slice(7);
+  const tokenHash = createHash("sha256").update(rawToken).digest("hex");
   const db = admin.firestore();
-  const snap = await db.collection("api_tokens").where("token", "==", token).where("revoked", "==", false).get();
+  const snap = await db.collection("api_tokens").where("token", "==", tokenHash).where("revoked", "==", false).get();
   if (snap.empty) {
     return res.status(401).json({ error: "Token inválido o revocado" });
   }
@@ -32,10 +34,11 @@ export function tokenOrFallback(fallbackMiddleware: (req: Request, res: Response
   return async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers["authorization"];
     if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.slice(7);
       try {
+        const rawToken = authHeader.slice(7);
+        const tokenHash = createHash("sha256").update(rawToken).digest("hex");
         const db = admin.firestore();
-        const snap = await db.collection("api_tokens").where("token", "==", token).where("revoked", "==", false).get();
+        const snap = await db.collection("api_tokens").where("token", "==", tokenHash).where("revoked", "==", false).get();
         if (!snap.empty) {
           const tokenDoc = snap.docs[0].data();
           (req as any).tokenClientId = tokenDoc.clientId;
@@ -47,10 +50,11 @@ export function tokenOrFallback(fallbackMiddleware: (req: Request, res: Response
           }
           return next();
         }
+        return res.status(401).json({ error: "Token inválido o revocado" });
       } catch (e) {
-        // Token lookup failed, fall through to fallback
+        console.error("Error verificando token:", e);
+        return res.status(503).json({ error: "Error verificando autenticación" });
       }
-      return res.status(401).json({ error: "Token inválido o revocado" });
     }
     // No Bearer header → use fallback auth
     fallbackMiddleware(req, res, next);

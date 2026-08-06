@@ -3,7 +3,9 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const MASTER_PASSWORD = process.env.MASTER_ADMIN_PASSWORD || "admin123";
+import { timingSafeEqual } from "node:crypto";
+
+const MASTER_PASSWORD = process.env.MASTER_ADMIN_PASSWORD || "";
 const MASTER_CLIENT_ID = process.env.MASTER_CLIENT_ID || "";
 
 export interface AuthenticatedRequest extends Request {
@@ -33,7 +35,11 @@ export function isMasterClient(clientId: string): boolean {
 }
 
 export function verifyMasterPassword(password: string): boolean {
-  return password === MASTER_PASSWORD;
+  if (!MASTER_PASSWORD) return false;
+  const a = Buffer.from(password);
+  const b = Buffer.from(MASTER_PASSWORD);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 export function getMasterClientId(): string {

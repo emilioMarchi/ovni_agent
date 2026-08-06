@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
+import { createHash, randomBytes } from "node:crypto";
 import admin from "../firebase.js";
 import { masterAuth } from "../middleware/auth.js";
 
@@ -10,9 +11,10 @@ const db = admin.firestore();
 router.post("/generate", masterAuth, async (req: Request, res: Response) => {
   const { clientId, agentId, description } = req.body;
   if (!clientId) return res.status(400).json({ error: "clientId requerido" });
-  const token = uuidv4();
+  const rawToken = randomBytes(32).toString("hex");
+  const tokenHash = createHash("sha256").update(rawToken).digest("hex");
   const tokenDoc = {
-    token,
+    token: tokenHash,
     clientId,
     agentId: agentId || null,
     description: description || "",
@@ -20,7 +22,7 @@ router.post("/generate", masterAuth, async (req: Request, res: Response) => {
     revoked: false,
   };
   await db.collection("api_tokens").add(tokenDoc);
-  res.json({ success: true, token });
+  res.json({ success: true, token: rawToken });
 });
 
 // Listar tokens activos

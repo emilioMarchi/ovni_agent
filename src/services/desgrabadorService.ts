@@ -6,7 +6,7 @@ import { promisify } from "util";
 import fs from "fs";
 import path from "path";
 import axios from "axios";
-import { calculateCost, trackCost, type CostBreakdown } from "./degrabadorCosts.js";
+import { calculateCost, trackCost, type CostBreakdown } from "./desgrabadorCosts.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -21,7 +21,7 @@ const PYTHON_BIN = process.env.PYTHON_BIN || path.join(process.cwd(), "scripts",
 const MAX_FILE_SIZE_MB = 25;
 const MAX_DURATION_MIN = 20;
 
-export interface DegrabadorResult {
+export interface DesgrabadorResult {
   markdown: string;
   rawTranscription?: string;
   costs?: CostBreakdown;
@@ -79,7 +79,7 @@ async function transcribeWithAssemblyAI(audioPath: string): Promise<{ utterances
     stdout = result.stdout.trim();
     stderr = result.stderr;
   } catch (err: any) {
-    console.error(`[Degrabador] AssemblyAI exec error:`, {
+    console.error(`[Desgrabador] AssemblyAI exec error:`, {
       code: err.code,
       killed: err.killed,
       stderr: err.stderr?.slice(0, 1000),
@@ -89,7 +89,7 @@ async function transcribeWithAssemblyAI(audioPath: string): Promise<{ utterances
   }
 
   if (stderr) {
-    console.warn(`[Degrabador] AssemblyAI stderr:`, stderr.slice(0, 500));
+    console.warn(`[Desgrabador] AssemblyAI stderr:`, stderr.slice(0, 500));
   }
 
   const resultFile = stdout;
@@ -116,7 +116,7 @@ async function transcribeWithAssemblyAI(audioPath: string): Promise<{ utterances
   }
 
   const speakers = [...new Set(result.utterances.map((u: any) => u.speaker))];
-  console.log(`[Degrabador] AssemblyAI detectó ${speakers.length} speakers: ${speakers.join(", ")}`);
+  console.log(`[Desgrabador] AssemblyAI detectó ${speakers.length} speakers: ${speakers.join(", ")}`);
 
   return {
     utterances: result.utterances,
@@ -220,12 +220,12 @@ El formato de salida debe ser exactamente este:
 
       return response.data.choices?.[0]?.message?.content || transcription;
     } catch (err: any) {
-      console.error(`[Degrabador] Error con modelo ${model}:`, err.message);
+      console.error(`[Desgrabador] Error con modelo ${model}:`, err.message);
       continue;
     }
   }
 
-  console.warn("[Degrabador] Todos los modelos fallaron, devolviendo transcripción cruda formateada");
+  console.warn("[Desgrabador] Todos los modelos fallaron, devolviendo transcripción cruda formateada");
   return formatRawTranscription(transcription, hasDiarization);
 }
 
@@ -260,11 +260,11 @@ function formatRawTranscription(raw: string, hasDiarization: boolean): string {
   return summary;
 }
 
-export async function processDegrabador(
+export async function processDesgrabador(
   inputPath: string,
   onProgress?: (stage: string, progress: number) => void
-): Promise<DegrabadorResult> {
-  const tempDir = path.join(path.dirname(inputPath), "degrabador_temp");
+): Promise<DesgrabadorResult> {
+  const tempDir = path.join(path.dirname(inputPath), "desgrabador_temp");
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
   const ext = path.extname(inputPath).toLowerCase();
@@ -286,7 +286,7 @@ export async function processDegrabador(
     }
 
     onProgress?.("extracting_audio", 15);
-    console.log(`[Degrabador] Extrayendo audio de video: ${ext}`);
+    console.log(`[Desgrabador] Extrayendo audio de video: ${ext}`);
     audioPath = path.join(tempDir, `audio_${Date.now()}.flac`);
     await extractAudioFlac(inputPath, audioPath);
 
@@ -296,14 +296,14 @@ export async function processDegrabador(
 
     // Try AssemblyAI first (transcription + diarization in one call)
     if (process.env.ASSEMBLYAI_API_KEY) {
-      console.log("[Degrabador] Transcribiendo con AssemblyAI (transcription + diarization)...");
+      console.log("[Desgrabador] Transcribiendo con AssemblyAI (transcription + diarization)...");
       try {
         const assemblyResult = await transcribeWithAssemblyAI(audioPath);
         rawTranscription = buildDiarizedTranscription(assemblyResult.utterances);
         hasDiarization = assemblyResult.utterances.length > 0;
-        console.log(`[Degrabador] AssemblyAI completado: ${assemblyResult.utterances.length} utterances, ${assemblyResult.utterances.length > 0 ? [...new Set(assemblyResult.utterances.map(u => u.speaker))].length : 0} speakers`);
+        console.log(`[Desgrabador] AssemblyAI completado: ${assemblyResult.utterances.length} utterances, ${assemblyResult.utterances.length > 0 ? [...new Set(assemblyResult.utterances.map(u => u.speaker))].length : 0} speakers`);
       } catch (err: any) {
-        console.error(`[Degrabador] AssemblyAI falló: ${err.message}`);
+        console.error(`[Desgrabador] AssemblyAI falló: ${err.message}`);
         throw err;
       }
     }
@@ -313,11 +313,11 @@ export async function processDegrabador(
     }
 
     onProgress?.("processing_llm", 70);
-    console.log(`[Degrabador] Procesando con LLM (diarización=${hasDiarization})...`);
+    console.log(`[Desgrabador] Procesando con LLM (diarización=${hasDiarization})...`);
     const markdown = await processWithLLM(rawTranscription, hasDiarization);
 
     onProgress?.("completed", 100);
-    console.log("[Degrabador] Proceso completado exitosamente");
+    console.log("[Desgrabador] Proceso completado exitosamente");
 
     // Calculate costs
     const llmModel = process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-super-120b-a12b:free";
@@ -333,7 +333,7 @@ export async function processDegrabador(
     // Track cumulative spending
     const cumulative = trackCost(costs);
 
-    console.log(`[Degrabador] Costo estimado: ${costs.costFormatted} (acumulado: $${cumulative.totalCost.toFixed(4)})`);
+    console.log(`[Desgrabador] Costo estimado: ${costs.costFormatted} (acumulado: $${cumulative.totalCost.toFixed(4)})`);
 
     return { markdown, rawTranscription, costs };
   } finally {

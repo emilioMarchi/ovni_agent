@@ -5,6 +5,7 @@ import admin from "../firebase.js";
 import { speechToText } from "../../services/speechToTextService.js";
 import { createRateLimitMiddleware, isWidgetTokenProtectionEnabled, issueWidgetToken, resolveClientId, widgetAccessGuard } from "../middleware/widgetSecurity.js";
 import { tokenOrFallback } from "../middleware/tokenAuth.js";
+import { masterAuth } from "../middleware/auth.js";
 
 const router = Router();
 const authGuard = tokenOrFallback(widgetAccessGuard);
@@ -93,6 +94,10 @@ router.post("/invoke", widgetWriteRateLimit, authGuard, async (req: Request, res
         success: false, 
         error: "agentId y message o audio son requeridos" 
       });
+    }
+
+    if (message && message.length > 4000) {
+      return res.status(400).json({ success: false, error: "El mensaje excede el máximo permitido (4000 caracteres)" });
     }
 
     let clientId = (res.locals.resolvedClientId as string) || bodyClientId || "";
@@ -234,6 +239,10 @@ router.post("/stream", widgetWriteRateLimit, authGuard, async (req: Request, res
       });
     }
 
+    if (message && message.length > 4000) {
+      return res.status(400).json({ success: false, error: "El mensaje excede el máximo permitido (4000 caracteres)" });
+    }
+
     let clientId = (res.locals.resolvedClientId as string) || bodyClientId || "";
 
     if (!clientId && agentId) {
@@ -343,7 +352,7 @@ router.get("/history/:threadId", widgetReadRateLimit, authGuard, async (req: Req
   }
 });
 
-router.get("/sessions", async (req: Request, res: Response) => {
+router.get("/sessions", tokenOrFallback(masterAuth), async (req: Request, res: Response) => {
   try {
     const { clientId, agentId, limit = "20" } = req.query;
     
@@ -351,18 +360,20 @@ router.get("/sessions", async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: "clientId es requerido" });
     }
 
+    const limitNum = Math.min(Math.max(parseInt(limit as string, 10) || 20, 1), 100);
+
     let snapshot;
     
     if (agentId) {
       snapshot = await db.collection("history")
         .where("clientId", "==", clientId as string)
         .where("agentId", "==", agentId as string)
-        .limit(parseInt(limit as string))
+        .limit(limitNum)
         .get();
     } else {
       snapshot = await db.collection("history")
         .where("clientId", "==", clientId as string)
-        .limit(parseInt(limit as string))
+        .limit(limitNum)
         .get();
     }
 
@@ -409,7 +420,7 @@ router.get("/sessions", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/sessions/:threadId", async (req: Request, res: Response) => {
+router.get("/sessions/:threadId", tokenOrFallback(masterAuth), async (req: Request, res: Response) => {
   try {
     const { threadId } = req.params;
     

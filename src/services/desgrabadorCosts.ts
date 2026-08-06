@@ -1,5 +1,5 @@
 /**
- * Cost Calculator for Degrabador Pipeline
+ * Cost Calculator for Desgrabador Pipeline
  *
  * AssemblyAI pricing (per-second billing):
  * ┌─────────────────────────────────┬──────────────┬──────────────┐
@@ -133,7 +133,7 @@ export interface CumulativeSpend {
   lastUpdated: string;
 }
 
-// ── Cost Calculator ────────────────────────────────────────────
+// ── Cost Calculator ─────────────────────────────────────────────
 
 export function calculateCost(params: {
   audioDurationSeconds: number;
@@ -240,7 +240,7 @@ export function calculateCost(params: {
 import fs from "fs";
 import path from "path";
 
-const SPEND_FILE = path.join(process.cwd(), "uploads", "degrabador_spend.json");
+const SPEND_FILE = path.join(process.cwd(), "uploads", "desgrabador_spend.json");
 
 function loadSpend(): CumulativeSpend {
   try {

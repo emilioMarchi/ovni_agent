@@ -62,9 +62,18 @@ export async function configNode(state: AgentStateType, _: any, config?: Runnabl
 
     const agentData = agentDoc.data()!;
     const resolvedClientId = agentData.clientId || clientId || "";
-    const adminDoc = resolvedClientId
-      ? await db.collection("admins").doc(resolvedClientId).get()
-      : null;
+
+    // Paralelizar la query de admins junto con resolveAllowedDocIds para reducir latencia
+    const [adminDoc, resolvedDocIds] = await Promise.all([
+      resolvedClientId ? db.collection("admins").doc(resolvedClientId).get() : Promise.resolve(null),
+      resolveAllowedDocIds({
+        clientId: resolvedClientId,
+        knowledgeDocs: agentData.knowledgeDocs || [],
+        knowledgeFolderIds: agentData.knowledgeFolderIds || [],
+        includeSubfolders: agentData.includeSubfolders !== false,
+      }),
+    ]);
+
     const adminData = adminDoc?.exists ? adminDoc.data() : null;
     const organizationName = adminData?.businessName || adminData?.name || "";
     const mergedBusinessContext = [adminData?.businessContext, agentData.businessContext]
@@ -84,15 +93,9 @@ export async function configNode(state: AgentStateType, _: any, config?: Runnabl
       knowledgeFolderIds: agentData.knowledgeFolderIds?.length || 0,
     });
 
-    // Resolver scope: carpetas + docs sueltos → lista plana de docIds
-    const resolvedDocIds = await resolveAllowedDocIds({
-      clientId: resolvedClientId,
-      knowledgeDocs: agentData.knowledgeDocs || [],
-      knowledgeFolderIds: agentData.knowledgeFolderIds || [],
-      includeSubfolders: agentData.includeSubfolders !== false,
-    });
 
     console.log(`🔧 [CONFIG] Scope resuelto: ${resolvedDocIds.length} docs (${agentData.knowledgeDocs?.length || 0} sueltos + ${agentData.knowledgeFolderIds?.length || 0} carpetas)`);
+
 
     // Sincronizar el clientId en el contexto de la sesión para que las herramientas puedan recuperarlo
     if (threadId) {

@@ -45,7 +45,8 @@ router.get("/:id", async (req: Request, res: Response, next) => {
       if (!doc.exists) {
         return res.status(404).json({ success: false, error: "Agente no encontrado" });
       }
-      return res.json({ success: true, data: { id: doc.id, ...doc.data() } });
+      const { name, description, welcomeMessage } = doc.data()!;
+      return res.json({ success: true, data: { id: doc.id, name, description, welcomeMessage } });
     } catch (error) {
       console.error("Error fetching agent:", error);
       return res.status(500).json({ success: false, error: "Error al obtener agente" });
@@ -136,7 +137,7 @@ router.post("/", tokenOrFallback(masterAuth), async (req: Request, res: Response
   }
 });
 
-router.put("/:id", async (req: Request, res: Response) => {
+router.put("/:id", tokenOrFallback(masterAuth), async (req: Request, res: Response) => {
   try {
     const updates: Record<string, unknown> = {
       updatedAt: new Date().toISOString(),
@@ -166,7 +167,7 @@ router.put("/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", tokenOrFallback(masterAuth), async (req: Request, res: Response) => {
   try {
     const agentId = req.params.id;
     const batch = db.batch();
@@ -202,7 +203,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
-router.patch("/:id/functions", async (req: Request, res: Response) => {
+router.patch("/:id/functions", tokenOrFallback(masterAuth), async (req: Request, res: Response) => {
   try {
     const { functions } = req.body;
     
@@ -223,7 +224,7 @@ router.patch("/:id/functions", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/:id/functions/:functionName/toggle", async (req: Request, res: Response) => {
+router.post("/:id/functions/:functionName/toggle", tokenOrFallback(masterAuth), async (req: Request, res: Response) => {
   try {
     const { functionName } = req.params;
     const doc = await db.collection("agents").doc(req.params.id).get();

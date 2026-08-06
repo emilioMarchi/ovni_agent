@@ -203,17 +203,23 @@ export function issueWidgetToken(params: { clientId: string; agentId?: string; o
 }
 
 export async function resolveClientId(agentId: string, providedClientId?: string): Promise<string> {
-  if (providedClientId) {
-    return providedClientId;
-  }
+  if (!agentId) return providedClientId || "";
 
   const cached = agentClientCache.get(agentId);
   if (cached && cached.expiresAt > Date.now()) {
-    return cached.clientId;
+    const clientId = cached.clientId;
+    if (providedClientId && clientId && providedClientId !== clientId) {
+      throw new Error("clientId no coincide con el agente");
+    }
+    return clientId;
   }
 
   const agentDoc = await db.collection("agents").doc(agentId).get();
   const clientId = agentDoc.exists ? (agentDoc.data()?.clientId || "") : "";
+
+  if (providedClientId && clientId && providedClientId !== clientId) {
+    throw new Error("clientId no coincide con el agente");
+  }
 
   if (clientId) {
     agentClientCache.set(agentId, {
@@ -222,7 +228,7 @@ export async function resolveClientId(agentId: string, providedClientId?: string
     });
   }
 
-  return clientId;
+  return clientId || providedClientId || "";
 }
 
 export async function getAllowedDomainsForClient(clientId: string): Promise<string[]> {
